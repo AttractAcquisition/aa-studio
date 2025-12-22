@@ -7,20 +7,13 @@ import {
   Plus,
   Grid,
   List,
-  Filter
+  Loader2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useScheduledPosts } from "@/hooks/useScheduledPosts";
+import { SchedulePostModal } from "@/components/modals/SchedulePostModal";
 
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-const scheduledPosts = [
-  { id: 1, day: 3, title: "Hook Formula", series: "Fix My Funnel", type: "Reel", status: "scheduled" },
-  { id: 2, day: 5, title: "Audit Results", series: "Attraction Audit", type: "Carousel", status: "draft" },
-  { id: 3, day: 8, title: "Brand Model", series: "Unavoidable Brand", type: "One-Pager", status: "scheduled" },
-  { id: 4, day: 12, title: "Ad Creative Tips", series: "Ad Creative", type: "Reel", status: "scheduled" },
-  { id: 5, day: 15, title: "Case Study", series: "Noise → Bookings", type: "Proof Card", status: "published" },
-  { id: 6, day: 18, title: "Framework Deep Dive", series: "Fix My Funnel", type: "Carousel", status: "draft" },
-];
 
 const statusStyles = {
   draft: "bg-muted border-muted-foreground/20",
@@ -37,6 +30,10 @@ const statusTextStyles = {
 export default function ContentCalendar() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<"month" | "week">("month");
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [editPost, setEditPost] = useState<any>(null);
+
+  const { scheduledPosts, isLoading } = useScheduledPosts();
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -53,13 +50,34 @@ export default function ContentCalendar() {
     setCurrentDate(new Date(year, month + 1, 1));
   };
 
-  const days = [];
+  const days: (number | null)[] = [];
   for (let i = 0; i < firstDayOfMonth; i++) {
     days.push(null);
   }
   for (let i = 1; i <= daysInMonth; i++) {
     days.push(i);
   }
+
+  const getPostsForDay = (day: number) => {
+    return scheduledPosts.filter((post: any) => {
+      const postDate = new Date(post.scheduled_for);
+      return (
+        postDate.getDate() === day &&
+        postDate.getMonth() === month &&
+        postDate.getFullYear() === year
+      );
+    });
+  };
+
+  const handlePostClick = (post: any) => {
+    setEditPost(post);
+    setScheduleModalOpen(true);
+  };
+
+  const handleCloseModal = (open: boolean) => {
+    setScheduleModalOpen(open);
+    if (!open) setEditPost(null);
+  };
 
   return (
     <AppLayout>
@@ -94,7 +112,7 @@ export default function ContentCalendar() {
                 Month
               </Button>
             </div>
-            <Button variant="gradient">
+            <Button variant="gradient" onClick={() => setScheduleModalOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Schedule Post
             </Button>
@@ -114,70 +132,78 @@ export default function ContentCalendar() {
           </div>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="aa-card">
-          {/* Days of Week Header */}
-          <div className="grid grid-cols-7 gap-2 mb-4">
-            {daysOfWeek.map((day) => (
-              <div key={day} className="text-center py-2">
-                <span className="text-sm font-medium text-muted-foreground">{day}</span>
-              </div>
-            ))}
+        {/* Loading State */}
+        {isLoading ? (
+          <div className="text-center py-16">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+            <p className="text-muted-foreground mt-4">Loading calendar...</p>
           </div>
-
-          {/* Calendar Days */}
-          <div className="grid grid-cols-7 gap-2">
-            {days.map((day, index) => {
-              const postsForDay = day ? scheduledPosts.filter(p => p.day === day) : [];
-              const isToday = day === new Date().getDate() && 
-                month === new Date().getMonth() && 
-                year === new Date().getFullYear();
-
-              return (
-                <div
-                  key={index}
-                  className={cn(
-                    "min-h-[120px] rounded-xl p-2 border transition-colors",
-                    day ? "bg-secondary/30 border-border hover:border-primary/30 cursor-pointer" : "bg-transparent border-transparent",
-                    isToday && "ring-2 ring-primary ring-offset-2 ring-offset-background"
-                  )}
-                >
-                  {day && (
-                    <>
-                      <span className={cn(
-                        "text-sm font-medium",
-                        isToday ? "text-primary" : "text-foreground"
-                      )}>
-                        {day}
-                      </span>
-                      <div className="mt-2 space-y-1">
-                        {postsForDay.map((post) => (
-                          <div
-                            key={post.id}
-                            className={cn(
-                              "p-1.5 rounded-lg border text-xs cursor-pointer hover:scale-105 transition-transform",
-                              statusStyles[post.status as keyof typeof statusStyles]
-                            )}
-                          >
-                            <p className={cn(
-                              "font-medium truncate",
-                              statusTextStyles[post.status as keyof typeof statusTextStyles]
-                            )}>
-                              {post.title}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground truncate">
-                              {post.type}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </>
-                  )}
+        ) : (
+          <div className="aa-card">
+            {/* Days of Week Header */}
+            <div className="grid grid-cols-7 gap-2 mb-4">
+              {daysOfWeek.map((day) => (
+                <div key={day} className="text-center py-2">
+                  <span className="text-sm font-medium text-muted-foreground">{day}</span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+
+            {/* Calendar Days */}
+            <div className="grid grid-cols-7 gap-2">
+              {days.map((day, index) => {
+                const postsForDay = day ? getPostsForDay(day) : [];
+                const isToday = day === new Date().getDate() && 
+                  month === new Date().getMonth() && 
+                  year === new Date().getFullYear();
+
+                return (
+                  <div
+                    key={index}
+                    className={cn(
+                      "min-h-[120px] rounded-xl p-2 border transition-colors",
+                      day ? "bg-secondary/30 border-border hover:border-primary/30 cursor-pointer" : "bg-transparent border-transparent",
+                      isToday && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+                    )}
+                  >
+                    {day && (
+                      <>
+                        <span className={cn(
+                          "text-sm font-medium",
+                          isToday ? "text-primary" : "text-foreground"
+                        )}>
+                          {day}
+                        </span>
+                        <div className="mt-2 space-y-1">
+                          {postsForDay.map((post: any) => (
+                            <div
+                              key={post.id}
+                              onClick={() => handlePostClick(post)}
+                              className={cn(
+                                "p-1.5 rounded-lg border text-xs cursor-pointer hover:scale-105 transition-transform",
+                                statusStyles[post.status as keyof typeof statusStyles] || statusStyles.scheduled
+                              )}
+                            >
+                              <p className={cn(
+                                "font-medium truncate",
+                                statusTextStyles[post.status as keyof typeof statusTextStyles] || statusTextStyles.scheduled
+                              )}>
+                                {post.title}
+                              </p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {post.post_type}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Legend */}
         <div className="mt-6 flex items-center gap-6">
@@ -195,6 +221,13 @@ export default function ContentCalendar() {
           </div>
         </div>
       </div>
+
+      {/* Modal */}
+      <SchedulePostModal 
+        open={scheduleModalOpen} 
+        onOpenChange={handleCloseModal}
+        editPost={editPost}
+      />
     </AppLayout>
   );
 }
