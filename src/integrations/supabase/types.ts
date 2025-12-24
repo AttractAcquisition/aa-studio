@@ -277,6 +277,8 @@ export type Database = {
       }
       events: {
         Row: {
+          contact_handle: string | null
+          contact_name: string | null
           created_at: string
           id: string
           keyword: string | null
@@ -290,6 +292,8 @@ export type Database = {
           value: number | null
         }
         Insert: {
+          contact_handle?: string | null
+          contact_name?: string | null
           created_at?: string
           id?: string
           keyword?: string | null
@@ -303,6 +307,8 @@ export type Database = {
           value?: number | null
         }
         Update: {
+          contact_handle?: string | null
+          contact_name?: string | null
           created_at?: string
           id?: string
           keyword?: string | null
