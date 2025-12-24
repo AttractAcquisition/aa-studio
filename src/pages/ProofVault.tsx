@@ -12,11 +12,13 @@ import {
   EyeOff,
   Image,
   LayoutTemplate,
-  Loader2
+  Loader2,
+  CalendarPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProofs } from "@/hooks/useProofs";
-import { useContentItems } from "@/hooks/useContentItems";
+import { useProofCards } from "@/hooks/useProofCards";
+import { useScheduledPosts } from "@/hooks/useScheduledPosts";
 import { AddProofModal } from "@/components/modals/AddProofModal";
 import { ProofScreenshotModal } from "@/components/modals/ProofScreenshotModal";
 import { toast } from "sonner";
@@ -28,7 +30,8 @@ export default function ProofVault() {
   const [generatingProofCardId, setGeneratingProofCardId] = useState<string | null>(null);
 
   const { proofs, stats, isLoading, updateProof } = useProofs();
-  const { createContentItem } = useContentItems();
+  const { proofCards, createProofCard, isCreating: isCreatingProofCard } = useProofCards();
+  const { createScheduledPost } = useScheduledPosts();
 
   const filteredProofs = proofs.filter((proof: any) =>
     proof.headline?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -43,18 +46,34 @@ export default function ProofVault() {
   const handleGenerateProofCard = async (proof: any) => {
     setGeneratingProofCardId(proof.id);
     try {
-      await createContentItem({
-        content_type: "proof_card",
-        series: "Attraction Audit",
-        title: proof.headline,
-        hook: proof.headline,
-        target_audience: proof.industry || "Business owners",
+      await createProofCard({
+        proof_id: proof.id,
+        client_name: proof.industry || "Client",
+        claim: proof.headline,
+        metric: proof.metric,
+        timeframe: proof.happened_at ? new Date(proof.happened_at).toLocaleDateString() : undefined,
+        proof_type: "result",
       });
-      toast.success("Proof card created! Check Content Factory.");
+      toast.success("Proof card created!");
     } catch (error) {
       toast.error("Failed to generate proof card");
     } finally {
       setGeneratingProofCardId(null);
+    }
+  };
+
+  const handleUseAsPost = async (proofCard: any) => {
+    try {
+      await createScheduledPost({
+        title: proofCard.claim,
+        post_type: "proof",
+        scheduled_for: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        proof_card_id: proofCard.id,
+        platform: "instagram",
+      });
+      toast.success("Added to calendar as draft!");
+    } catch (error) {
+      toast.error("Failed to add to calendar");
     }
   };
 
@@ -217,6 +236,50 @@ export default function ProofVault() {
                 </div>
               ))}
             </div>
+
+            {/* Generated Proof Cards Section */}
+            {proofCards.length > 0 && (
+              <div className="mt-12">
+                <h2 className="text-xl font-bold text-foreground mb-6">Generated Proof Cards</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {proofCards.map((card: any) => (
+                    <div key={card.id} className="aa-card">
+                      {card.assetUrl ? (
+                        <img 
+                          src={card.assetUrl} 
+                          alt={card.claim}
+                          className="w-full aspect-[4/5] object-cover rounded-xl mb-4"
+                        />
+                      ) : (
+                        <div className="w-full aspect-[4/5] bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl mb-4 flex items-center justify-center">
+                          <LayoutTemplate className="w-12 h-12 text-primary/50" />
+                        </div>
+                      )}
+                      <h3 className="font-bold text-foreground">{card.claim}</h3>
+                      {card.client_name && (
+                        <p className="text-sm text-muted-foreground mt-1">{card.client_name}</p>
+                      )}
+                      {card.metric && (
+                        <span className="aa-pill bg-primary/10 text-primary text-xs mt-2 inline-block">
+                          {card.metric}
+                        </span>
+                      )}
+                      <div className="flex gap-2 mt-4">
+                        <Button
+                          variant="gradient"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleUseAsPost(card)}
+                        >
+                          <CalendarPlus className="w-4 h-4 mr-1" />
+                          Use as Post
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {filteredProofs.length === 0 && !isLoading && (
               <div className="text-center py-16">
