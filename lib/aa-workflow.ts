@@ -110,7 +110,11 @@ export const runWorkflow = async (workflow: WorkflowInput) => {
     if (workflow.agent === "brief_agent") {
       const r = await runner.run(aaBriefAgent, conversationHistory);
       const text = extractLastAssistantText(r);
-      return { finalOutput: r.finalOutput ?? text, output_text: text, brief_json: r.finalOutput ?? null };
+      return {
+        finalOutput: r.finalOutput ?? text,
+        output_text: text,
+        brief_json: r.finalOutput ?? null,
+      };
     }
 
     if (workflow.agent === "script_agent") {
