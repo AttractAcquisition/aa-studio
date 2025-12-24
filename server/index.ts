@@ -5,6 +5,7 @@ import express from "express";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import OpenAI from "openai";
 import { runWorkflow } from "../lib/aa-workflow";
 
 const app = express();
@@ -22,6 +23,10 @@ const supabase =
   process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // ✅ Healthcheck for Railway
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
@@ -104,14 +109,14 @@ function normalizeOnePagerBlocks(onePagerJson: any) {
 }
 
 // -------------------------------
-// Design kind → prompt format mapping
-// (your prompt supports: one_pager | bold_text_card | reel_cover)
+// Helpers: map ratio -> image size
+// GPT image models support: 1024x1024, 1536x1024, 1024x1536, or auto.
+// For 4:5 we generate portrait (1024x1536) and your UI container crops naturally.
 // -------------------------------
-function mapKindToFormat(kind: string | undefined) {
-  if (kind === "bold_text_card") return { format: "bold_text_card", ratio: "1:1" as const };
-  if (kind === "reel_cover") return { format: "reel_cover", ratio: "9:16" as const };
-  if (kind === "one_pager_cover") return { format: "one_pager", ratio: "4:5" as const };
-  return { format: null as any, ratio: null as any };
+function sizeForRatio(ratio: "1:1" | "9:16" | "4:5") {
+  if (ratio === "1:1") return "1024x1024";
+  // both 9:16 and 4:5 are portrait-ish; we'll use portrait and crop in UI
+  return "1024x1536";
 }
 
 app.post("/api/content-factory", async (req, res) => {
@@ -228,7 +233,7 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Supabase not configured on API (missing env vars)" });
       }
 
-      // 1) Load current row
+      // 1) Load the script from DB
       const { data: row, error: fetchErr } = await supabase
         .from("content_runs")
         .select("id, user_id, content_type, series, hook, target_audience, script_text")
@@ -238,22 +243,7 @@ app.post("/api/content-factory", async (req, res) => {
       if (fetchErr) throw fetchErr;
       if (!row) return res.status(404).json({ error: "Run not found" });
       if (row.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
-
-      // ✅ Allow UI to pass edited script_text
-      const incomingScript = typeof body.script_text === "string" ? body.script_text : null;
-      const scriptToUse = (incomingScript && incomingScript.trim()) ? incomingScript.trim() : row.script_text;
-
-      if (!scriptToUse) {
-        return res.status(400).json({ error: "Run has no script_text yet" });
-      }
-
-      // ✅ Persist edited script back to DB
-      if (incomingScript && incomingScript.trim()) {
-        await supabase
-          .from("content_runs")
-          .update({ script_text: incomingScript.trim() })
-          .eq("id", run_id);
-      }
+      if (!row.script_text) return res.status(400).json({ error: "Run has no script_text yet" });
 
       // 2) Build prompt: meta + SCRIPT
       const input_as_text = [
@@ -263,7 +253,7 @@ app.post("/api/content-factory", async (req, res) => {
         `target_audience: ${row.target_audience}`,
         ``,
         `SCRIPT:`,
-        scriptToUse,
+        row.script_text,
       ].join("\n");
 
       // 3) Run one-pager agent
@@ -343,29 +333,38 @@ app.post("/api/content-factory", async (req, res) => {
     }
 
     // -------------------------------
-    // ACTION 3: GENERATE DESIGN (AA_Design_Agent via runWorkflow route "design_agent")
+    // ACTION 3: GENERATE DESIGN (prompt -> image)
     // -------------------------------
     if (body?.action === "generate_design") {
       const run_id = body.run_id as string;
 
-      // Frontend sends `kind` (bold_text_card | reel_cover | one_pager_cover)
-      const kind = (body.kind ?? null) as string | null;
+      // frontend sends kind; your prompt uses "format"
+      const kind = String(body.kind ?? "").trim();
 
-      // Prompt expects `format` (one_pager | bold_text_card | reel_cover)
-      const explicitFormat = (body.format ?? null) as
-        | "one_pager"
-        | "bold_text_card"
-        | "reel_cover"
-        | null;
+      // Map UI kind -> agent format + ratio
+      // (Your agent spec only allows one_pager | bold_text_card | reel_cover)
+      let format: "one_pager" | "bold_text_card" | "reel_cover" | null = null;
+      let ratio: "1:1" | "9:16" | "4:5" = "1:1";
 
-      const mapped = kind ? mapKindToFormat(kind) : { format: null, ratio: null };
-      const format =
-        explicitFormat ?? (mapped.format as any);
-
-      const ratio =
-        (body.ratio as "4:5" | "1:1" | "9:16" | null) ??
-        (mapped.ratio as any) ??
-        null;
+      if (kind === "bold_text_card") {
+        format = "bold_text_card";
+        ratio = "1:1";
+      } else if (kind === "reel_cover") {
+        format = "reel_cover";
+        ratio = "9:16";
+      } else if (kind === "one_pager_cover") {
+        // Treat as one_pager-style design in 4:5 frame (cover-like)
+        format = "one_pager";
+        ratio = "4:5";
+      } else {
+        // also accept body.format directly if you decide to pass it later
+        const f = String(body.format ?? "").trim();
+        if (f === "one_pager" || f === "bold_text_card" || f === "reel_cover") {
+          format = f;
+        }
+        const r = String(body.ratio ?? "").trim();
+        if (r === "1:1" || r === "9:16" || r === "4:5") ratio = r;
+      }
 
       const mode = (body.mode ?? "clean") as "clean" | "punchy";
 
@@ -375,11 +374,11 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Missing or invalid run_id (UUID required)" });
       }
 
-      if (!format || !["one_pager", "bold_text_card", "reel_cover"].includes(format)) {
+      if (!format) {
         return res.status(400).json({
-          error: "Missing or invalid format",
-          supported: ["one_pager", "bold_text_card", "reel_cover"],
-          note: "If your UI uses kind=one_pager_cover, it is mapped to format=one_pager",
+          error: "Missing or invalid kind/format",
+          supported_kind: ["bold_text_card", "reel_cover", "one_pager_cover"],
+          supported_format: ["one_pager", "bold_text_card", "reel_cover"],
         });
       }
 
@@ -389,9 +388,14 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Supabase not configured on API (missing env vars)" });
       }
 
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(500).json({ error: "Missing OPENAI_API_KEY on API" });
+      }
+
+      // Load one_pager_json to supply blocks
       const { data: row, error: fetchErr } = await supabase
         .from("content_runs")
-        .select("id, user_id, content_type, series, hook, target_audience, one_pager_json")
+        .select("id, user_id, series, hook, target_audience, one_pager_json")
         .eq("id", run_id)
         .single();
 
@@ -404,7 +408,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const blocks = normalizeOnePagerBlocks(row.one_pager_json).slice(0, 7);
 
-      // Input must match your prompt's "Input" section
+      // What we send into the agent
       const inputPayload = {
         brand: "Attract Acquisition",
         series: row.series,
@@ -412,14 +416,15 @@ app.post("/api/content-factory", async (req, res) => {
         audience: row.target_audience,
         blocks,
         mode,
-        ratio: ratio ?? undefined,
+        ratio,
         format,
       };
 
       const input_as_text = JSON.stringify(inputPayload, null, 2);
 
+      // 1) Ask your design agent for a prompt JSON
+      // IMPORTANT: use the workflow route name (design_agent), not AA_Design_Agent
       const r = await runWorkflow({
-        // ✅ IMPORTANT: this must match your runWorkflow routes
         agent: "design_agent",
         input_as_text,
       });
@@ -427,13 +432,14 @@ app.post("/api/content-factory", async (req, res) => {
       const out = String(r?.output_text ?? r?.finalOutput ?? "").trim();
       const parsed = tryParseJson(out);
 
-      if (!parsed.ok) {
+      if (!parsed.ok || !parsed.json) {
         return res.status(200).json({
           run_id,
           kind,
           format,
           ratio,
           design_json: null,
+          image_b64: null,
           error: "Design agent returned invalid JSON.",
           debug: {
             cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
@@ -442,12 +448,53 @@ app.post("/api/content-factory", async (req, res) => {
         });
       }
 
+      const design_json = parsed.json as any;
+      const prompt = String(design_json?.prompt ?? "").trim();
+
+      if (!prompt) {
+        return res.status(200).json({
+          run_id,
+          kind,
+          format,
+          ratio,
+          design_json,
+          image_b64: null,
+          error: "Design JSON missing `prompt`.",
+        });
+      }
+
+      // 2) Generate image from prompt
+      // NOTE: For GPT image models, DO NOT send response_format.
+      // Use output_format instead; GPT image models always return base64.  [oai_citation:2‡OpenAI Platform](https://platform.openai.com/docs/api-reference/images?utm_source=chatgpt.com)
+      const img = await openai.images.generate({
+        model: "gpt-image-1.5",
+        prompt,
+        n: 1,
+        size: sizeForRatio(ratio),
+        output_format: "png",
+      });
+
+      const image_b64 = img?.data?.[0]?.b64_json ?? null;
+
+      if (!image_b64) {
+        return res.status(200).json({
+          run_id,
+          kind,
+          format,
+          ratio,
+          design_json,
+          image_b64: null,
+          error: "Image generation returned no b64_json.",
+        });
+      }
+
       return res.status(200).json({
         run_id,
         kind,
         format,
         ratio,
-        design_json: parsed.json,
+        design_json,
+        image_b64, // ✅ frontend can display: data:image/png;base64,${image_b64}
       });
     }
 
