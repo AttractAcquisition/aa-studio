@@ -4,16 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Sparkles, 
-  ArrowRight, 
+import {
+  Sparkles,
+  ArrowRight,
   ArrowLeft,
   FileText,
   LayoutTemplate,
@@ -22,10 +22,9 @@ import {
   AlertTriangle,
   Wand2,
   RefreshCw,
-  Download
+  Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useContentItems } from "@/hooks/useContentItems";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useExports } from "@/hooks/useExports";
 import { useToast } from "@/hooks/use-toast";
@@ -57,88 +56,81 @@ const steps = [
   { id: 4, title: "Design", icon: Image },
 ];
 
-const generateMockScript = (hook: string, audience: string) => {
-  const baseScript = hook 
-    ? `${hook}\n\nAnd that's not an insult—it's a diagnosis.\n\n`
-    : `Your content is noise. And that's not an insult—it's a diagnosis.\n\n`;
-  
-  return `${baseScript}Every day, your ideal clients scroll past 300+ posts. Most blend together. Why? Because most brands lead with features, not feelings.
-
-Here's the fix: Stop selling what you do. Start selling how they'll feel after working with you.
-
-The dentist who says "We do cleanings" loses to the one who says "Walk out smiling, not stressed."
-
-The gym that posts workout tips loses to the one that posts transformation stories with raw emotion.
-
-Your audience doesn't want information. They want transformation.
-
-So here's your action step: Take your next post idea and flip it. Lead with the outcome, not the process.
-
-Because attention isn't earned. It's attracted.`;
-};
-
+// ✅ Still used for local One-Pager mock until you wire that webhook later
 const generateOnePagerBlocks = (script: string) => {
-  const sentences = script.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const sentences = script.split(/[.!?]+/).filter((s) => s.trim().length > 10);
   const blocks = [];
-  
+
   for (let i = 0; i < Math.min(5, sentences.length); i++) {
     blocks.push({
       id: i + 1,
       title: `Beat ${i + 1}`,
-      content: sentences[i * Math.floor(sentences.length / 5)]?.trim() || `Key point ${i + 1}`,
-      details: ""
+      content:
+        sentences[i * Math.floor(sentences.length / 5)]?.trim() ||
+        `Key point ${i + 1}`,
+      details: "",
     });
   }
-  
+
   return blocks;
+};
+
+type WebhookGenerateScriptResponse = {
+  run_id: string;
+  brief_json?: any;
+  script_json?: any;
+  script_text: string;
 };
 
 export default function ContentFactory() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { createContentItem, saveScript, saveOnePager, saveDesign, updateContentItem, isCreating } = useContentItems();
   const { templates } = useTemplates();
   const { createExport } = useExports();
-  
+
   const [currentStep, setCurrentStep] = useState(1);
+
+  // NOTE: for now this holds the NEW content_runs.id (run_id)
   const [contentItemId, setContentItemId] = useState<string | null>(null);
+
   const [contentType, setContentType] = useState("");
   const [series, setSeries] = useState("");
   const [hook, setHook] = useState("");
   const [audience, setAudience] = useState("Physical/local businesses");
+
   const [script, setScript] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
   const [onePagerBlocks, setOnePagerBlocks] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState("4:5");
   const designRef = useRef<HTMLDivElement>(null);
 
+  // ✅ AA shortform target: 140–160 words
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
-  const isWordCountValid = wordCount >= 100 && wordCount <= 200;
+  const isWordCountValid = wordCount >= 140 && wordCount <= 160;
   const estSeconds = Math.round(wordCount * 0.4);
 
-  // Autosave script on changes
+  // ❌ Disable autosave for now (old saveScript hook would write to old tables and break)
+  // You’ll re-enable autosave later by adding a /api/content-factory/update-script action.
   useEffect(() => {
-    if (!contentItemId || !script) return;
-    
-    const timeout = setTimeout(async () => {
-      try {
-        await saveScript({
-          contentItemId,
-          text: script,
-          wordCount,
-          estSeconds,
-        });
-      } catch (error) {
-        console.error("Autosave failed:", error);
-      }
-    }, 2000);
+    return;
+  }, []);
 
-    return () => clearTimeout(timeout);
-  }, [script, contentItemId]);
+  const CONTENT_FACTORY_WEBHOOK =
+    process.env.NEXT_PUBLIC_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
 
   const handleGenerateScript = async () => {
+    if (!user) {
+      toast({
+        title: "Not signed in",
+        description: "Please sign in to generate content.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!contentType || !series) {
       toast({
         title: "Missing fields",
@@ -149,30 +141,44 @@ export default function ContentFactory() {
     }
 
     setIsGenerating(true);
-    
+
     try {
-      // Create content item first
-      const item = await createContentItem({
-        content_type: contentType,
-        series,
-        hook: hook || undefined,
-        target_audience: audience,
-        title: hook || `${series} - ${contentType}`,
-      });
-      
-      setContentItemId(item.id);
+      const payload = {
+        action: "generate_script",
+        inputs: {
+          content_type: contentType,
+          series,
+          hook: hook || undefined,
+          target_audience: audience,
+        },
+        idempotency_key:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`,
+      };
 
-      // Generate script (mock for now - can be replaced with AI)
-      const generatedScript = generateMockScript(hook, audience);
-      setScript(generatedScript);
-
-      // Save script to DB
-      await saveScript({
-        contentItemId: item.id,
-        text: generatedScript,
-        wordCount: generatedScript.split(/\s+/).filter(Boolean).length,
-        estSeconds: Math.round(generatedScript.split(/\s+/).filter(Boolean).length * 0.4),
+      const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // ✅ matches the backend placeholder auth we discussed
+          "x-user-id": user.id,
+        },
+        body: JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to generate script");
+      }
+
+      const data = (await res.json()) as WebhookGenerateScriptResponse;
+
+      // Save run_id for next steps (one-pager/design will fetch this later)
+      setContentItemId(data.run_id);
+
+      // Fill the script editor
+      setScript(data.script_text || "");
 
       setCurrentStep(2);
       toast({
@@ -190,25 +196,20 @@ export default function ContentFactory() {
     }
   };
 
+  // TEMP (local mock) until one-pager webhook is wired
   const handleGenerateOnePager = async () => {
-    if (!contentItemId || !script) return;
+    if (!script) return;
 
     setIsGenerating(true);
-    
     try {
       const blocks = generateOnePagerBlocks(script);
       setOnePagerBlocks(blocks);
 
-      await saveOnePager({
-        contentItemId,
-        markdown: script,
-        blocks,
-      });
-
       setCurrentStep(3);
       toast({
         title: "One-Pager generated!",
-        description: "Review and edit your content beats.",
+        description:
+          "This is using local mock logic for now. We'll wire the one_pager_agent next.",
       });
     } catch (error: any) {
       toast({
@@ -222,68 +223,62 @@ export default function ContentFactory() {
   };
 
   const handleSaveOnePager = async () => {
-    if (!contentItemId) return;
-    
-    setIsSaving(true);
-    try {
-      await saveOnePager({
-        contentItemId,
-        markdown: script,
-        blocks: onePagerBlocks,
-      });
-      toast({ title: "Saved!", description: "One-pager updated." });
-    } catch (error) {
-      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
-    } finally {
-      setIsSaving(false);
-    }
+    toast({
+      title: "Not wired yet",
+      description:
+        "Save One-Pager will be connected to the one_pager_agent + Supabase next.",
+    });
   };
 
   const handleGenerateDesigns = () => {
     setCurrentStep(4);
   };
 
+  // Leaving your export logic as-is for now (will be refactored once design_agent is wired)
   const handleSaveAndExport = async () => {
-    if (!contentItemId || !user || !designRef.current) {
-      toast({ title: "Error", description: "No design to export", variant: "destructive" });
+    if (!user || !designRef.current) {
+      toast({
+        title: "Error",
+        description: "No design to export",
+        variant: "destructive",
+      });
       return;
     }
 
     setIsSaving(true);
-    
+
     try {
-      // Capture design as PNG
       const canvas = await html2canvas(designRef.current, {
         backgroundColor: "#0B0F19",
         scale: 2,
       });
-      
+
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((b) => resolve(b!), "image/png", 0.95);
       });
 
-      // Upload to storage
       const filename = `design_${Date.now()}.png`;
-      const uploaded = await uploadBlobToBucket("aa-designs", blob, user.id, filename);
-      
+      const uploaded = await uploadBlobToBucket(
+        "aa-designs",
+        blob,
+        user.id,
+        filename
+      );
+
       if (!uploaded) throw new Error("Upload failed");
 
-      // Create asset record
-      const asset = await createAssetRow(user.id, "aa-designs", uploaded.path, "design", ["design", selectedFormat], filename);
+      const asset = await createAssetRow(
+        user.id,
+        "aa-designs",
+        uploaded.path,
+        "design",
+        ["design", selectedFormat],
+        filename
+      );
       if (!asset) throw new Error("Asset creation failed");
 
-      // Save design record
-      await saveDesign({
-        contentItemId,
-        templateId: selectedTemplate || undefined,
-        format: selectedFormat,
-        designJson: { blocks: onePagerBlocks, template: selectedTemplate },
-        renderedAssetId: asset.id,
-      });
-
-      // Create export
       await createExport({
-        contentItemId,
+        contentItemId: contentItemId || "temp",
         kind: "design",
         format: selectedFormat,
         blob,
@@ -291,16 +286,10 @@ export default function ContentFactory() {
         title: hook || contentType,
       });
 
-      // Update content item status
-      updateContentItem({
-        id: contentItemId,
-        status: "ready",
-        on_brand_score: Math.floor(Math.random() * 20) + 80,
-      });
-
       toast({
-        title: "Content saved!",
-        description: "Design exported and content marked as ready.",
+        title: "Export saved!",
+        description:
+          "Design exported. We'll wire Save & Export All into the new asset_vault table later.",
       });
 
       // Reset form
@@ -324,8 +313,8 @@ export default function ContentFactory() {
   };
 
   const updateBlock = (blockId: number, field: string, value: string) => {
-    setOnePagerBlocks(blocks =>
-      blocks.map(b => b.id === blockId ? { ...b, [field]: value } : b)
+    setOnePagerBlocks((blocks) =>
+      blocks.map((b) => (b.id === blockId ? { ...b, [field]: value } : b))
     );
   };
 
@@ -348,26 +337,34 @@ export default function ContentFactory() {
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
               <div className="flex flex-col items-center">
-                <div className={cn(
-                  "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
-                  currentStep >= step.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-muted-foreground"
-                )}>
+                <div
+                  className={cn(
+                    "w-12 h-12 rounded-2xl flex items-center justify-center transition-all",
+                    currentStep >= step.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-muted-foreground"
+                  )}
+                >
                   <step.icon className="w-5 h-5" />
                 </div>
-                <span className={cn(
-                  "text-xs font-medium mt-2",
-                  currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
-                )}>
+                <span
+                  className={cn(
+                    "text-xs font-medium mt-2",
+                    currentStep >= step.id
+                      ? "text-foreground"
+                      : "text-muted-foreground"
+                  )}
+                >
                   {step.title}
                 </span>
               </div>
               {index < steps.length - 1 && (
-                <div className={cn(
-                  "w-24 h-0.5 mx-4",
-                  currentStep > step.id ? "bg-primary" : "bg-border"
-                )} />
+                <div
+                  className={cn(
+                    "w-24 h-0.5 mx-4",
+                    currentStep > step.id ? "bg-primary" : "bg-border"
+                  )}
+                />
               )}
             </div>
           ))}
@@ -379,13 +376,19 @@ export default function ContentFactory() {
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
-                <h2 className="aa-headline-md text-foreground mb-2">Define Your Content</h2>
-                <p className="text-muted-foreground">Set the type, series, and hook for your content piece.</p>
+                <h2 className="aa-headline-md text-foreground mb-2">
+                  Define Your Content
+                </h2>
+                <p className="text-muted-foreground">
+                  Set the type, series, and hook for your content piece.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-muted-foreground mb-2 block">Content Type</Label>
+                  <Label className="text-muted-foreground mb-2 block">
+                    Content Type
+                  </Label>
                   <Select value={contentType} onValueChange={setContentType}>
                     <SelectTrigger className="h-12">
                       <SelectValue placeholder="Select type..." />
@@ -401,7 +404,9 @@ export default function ContentFactory() {
                 </div>
 
                 <div>
-                  <Label className="text-muted-foreground mb-2 block">Series</Label>
+                  <Label className="text-muted-foreground mb-2 block">
+                    Series
+                  </Label>
                   <Select value={series} onValueChange={setSeries}>
                     <SelectTrigger className="h-12">
                       <SelectValue placeholder="Select series..." />
@@ -418,8 +423,10 @@ export default function ContentFactory() {
               </div>
 
               <div>
-                <Label className="text-muted-foreground mb-2 block">Hook (Optional)</Label>
-                <Input 
+                <Label className="text-muted-foreground mb-2 block">
+                  Hook (Optional)
+                </Label>
+                <Input
                   value={hook}
                   onChange={(e) => setHook(e.target.value)}
                   placeholder="e.g., Your content is noise."
@@ -428,8 +435,10 @@ export default function ContentFactory() {
               </div>
 
               <div>
-                <Label className="text-muted-foreground mb-2 block">Target Audience</Label>
-                <Input 
+                <Label className="text-muted-foreground mb-2 block">
+                  Target Audience
+                </Label>
+                <Input
                   value={audience}
                   onChange={(e) => setAudience(e.target.value)}
                   className="h-12"
@@ -437,11 +446,11 @@ export default function ContentFactory() {
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button 
-                  variant="gradient" 
-                  size="lg" 
+                <Button
+                  variant="gradient"
+                  size="lg"
                   onClick={handleGenerateScript}
-                  disabled={!contentType || !series || isGenerating || isCreating}
+                  disabled={!contentType || !series || isGenerating}
                 >
                   {isGenerating ? (
                     <>
@@ -465,22 +474,31 @@ export default function ContentFactory() {
             <div className="space-y-6">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="aa-headline-md text-foreground mb-2">Script Editor</h2>
-                  <p className="text-muted-foreground">Edit your AI-generated script. Target: 100-200 words (~60s TTS).</p>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    Script Editor
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Edit your AI-generated script. Target: 140–160 words (~60s
+                    TTS).
+                  </p>
                 </div>
-                <div className={cn(
-                  "px-4 py-2 rounded-xl flex items-center gap-2",
-                  isWordCountValid ? "bg-green-500/10" : "bg-destructive/10"
-                )}>
+                <div
+                  className={cn(
+                    "px-4 py-2 rounded-xl flex items-center gap-2",
+                    isWordCountValid ? "bg-green-500/10" : "bg-destructive/10"
+                  )}
+                >
                   {isWordCountValid ? (
                     <CheckCircle className="w-4 h-4 text-green-400" />
                   ) : (
                     <AlertTriangle className="w-4 h-4 text-destructive" />
                   )}
-                  <span className={cn(
-                    "font-semibold",
-                    isWordCountValid ? "text-green-400" : "text-destructive"
-                  )}>
+                  <span
+                    className={cn(
+                      "font-semibold",
+                      isWordCountValid ? "text-green-400" : "text-destructive"
+                    )}
+                  >
                     {wordCount} words • ~{estSeconds}s
                   </span>
                 </div>
@@ -494,8 +512,15 @@ export default function ContentFactory() {
               />
 
               <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm" onClick={handleGenerateScript} disabled={isGenerating}>
-                  <RefreshCw className={cn("w-4 h-4 mr-2", isGenerating && "animate-spin")} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateScript}
+                  disabled={isGenerating}
+                >
+                  <RefreshCw
+                    className={cn("w-4 h-4 mr-2", isGenerating && "animate-spin")}
+                  />
                   Regenerate
                 </Button>
               </div>
@@ -505,7 +530,12 @@ export default function ContentFactory() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button variant="gradient" size="lg" onClick={handleGenerateOnePager} disabled={isGenerating}>
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleGenerateOnePager}
+                  disabled={isGenerating || !script}
+                >
                   {isGenerating ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -527,11 +557,25 @@ export default function ContentFactory() {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="aa-headline-md text-foreground mb-2">One-Pager Beats</h2>
-                  <p className="text-muted-foreground">AI-matched beats from your script. Add value within each beat.</p>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    One-Pager Beats
+                  </h2>
+                  <p className="text-muted-foreground">
+                    AI-matched beats from your script. Add value within each
+                    beat.
+                  </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={handleSaveOnePager} disabled={isSaving}>
-                  {isSaving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveOnePager}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                  )}
                   Save
                 </Button>
               </div>
@@ -541,28 +585,36 @@ export default function ContentFactory() {
                   <div key={block.id} className="aa-panel">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="font-bold text-primary">{block.id}</span>
+                        <span className="font-bold text-primary">
+                          {block.id}
+                        </span>
                       </div>
                       <div className="flex-1">
-                        <Input 
+                        <Input
                           value={block.title}
-                          onChange={(e) => updateBlock(block.id, "title", e.target.value)}
+                          onChange={(e) =>
+                            updateBlock(block.id, "title", e.target.value)
+                          }
                           className="font-semibold mb-2 bg-transparent border-0 p-0 h-auto text-lg focus-visible:ring-0"
                         />
                         <div className="space-y-1 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                            <Input 
+                            <Input
                               value={block.content}
-                              onChange={(e) => updateBlock(block.id, "content", e.target.value)}
+                              onChange={(e) =>
+                                updateBlock(block.id, "content", e.target.value)
+                              }
                               className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
                             />
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
-                            <Input 
+                            <Input
                               value={block.details}
-                              onChange={(e) => updateBlock(block.id, "details", e.target.value)}
+                              onChange={(e) =>
+                                updateBlock(block.id, "details", e.target.value)
+                              }
                               placeholder="Add example or detail..."
                               className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0 text-muted-foreground"
                             />
@@ -591,11 +643,14 @@ export default function ContentFactory() {
           {currentStep === 4 && (
             <div className="space-y-6">
               <div>
-                <h2 className="aa-headline-md text-foreground mb-2">Design Assets</h2>
-                <p className="text-muted-foreground">Select template and format, then export your on-brand design.</p>
+                <h2 className="aa-headline-md text-foreground mb-2">
+                  Design Assets
+                </h2>
+                <p className="text-muted-foreground">
+                  Select template and format, then export your on-brand design.
+                </p>
               </div>
 
-              {/* Format selector */}
               <div className="flex gap-3">
                 {["9:16", "4:5", "1:1"].map((format) => (
                   <Button
@@ -609,8 +664,7 @@ export default function ContentFactory() {
                 ))}
               </div>
 
-              {/* Design preview */}
-              <div 
+              <div
                 ref={designRef}
                 className="aspect-[4/5] max-w-md mx-auto rounded-2xl bg-[#0B0F19] border-2 border-primary/30 p-8 flex flex-col justify-between"
               >
@@ -624,7 +678,10 @@ export default function ContentFactory() {
                 </div>
                 <div className="space-y-2">
                   {onePagerBlocks.slice(0, 3).map((block, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 text-sm text-gray-300"
+                    >
                       <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                       {block.content?.slice(0, 50)}...
                     </div>
@@ -643,7 +700,12 @@ export default function ContentFactory() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button variant="gradient" size="lg" onClick={handleSaveAndExport} disabled={isSaving}>
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleSaveAndExport}
+                  disabled={isSaving}
+                >
                   {isSaving ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
