@@ -72,12 +72,30 @@ const aaTtsAgent = new Agent({
 
 const aaOnePagerAgent = new Agent({
   name: "AA_One_Pager_Agent",
-  instructions: "",
+  instructions: `You are the Attract Acquisition One-Pager Agent.
+
+INPUT: You will receive metadata (content_type, series, hook, target_audience) and then a SCRIPT.
+
+TASK: Convert the SCRIPT into a downloadable one-pager structure.
+
+STRICT OUTPUT RULES:
+- Output ONLY valid JSON. No markdown. No code fences. No commentary.
+- The JSON MUST be a single object with EXACTLY this top-level shape:
+{
+  "title": string,
+  "subtitle": string,
+  "blocks": [
+    { "id": number, "title": string, "content": string, "details": string }
+  ]
+}
+
+CONTENT RULES:
+- The one-pager must match the SCRIPT 1:1 in beats (no missing beats).
+- You may add extra value ONLY inside "details" (examples, checklist, micro-steps), but do not introduce new beats.
+- Return 4–6 blocks.
+- Keep "content" concise (1–3 short sentences). Put extra value in "details".`,
   model: "gpt-5.2",
-  modelSettings: {
-    reasoning: { effort: "low", summary: "auto" },
-    store: true,
-  },
+  modelSettings: { reasoning: { effort: "low", summary: "auto" }, store: true },
 });
 
 const aaDesignAgent = new Agent({
