@@ -44,16 +44,29 @@ function stripCodeFences(s: string) {
     .trim();
 }
 
-function extractJsonObject(s: string) {
-  const str = String(s || "");
-  const start = str.indexOf("{");
-  const end = str.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return "";
-  return str.slice(start, end + 1).trim();
+function extractJsonValue(s: string) {
+  const str = String(s || "").trim();
+  if (!str) return "";
+
+  // Prefer object
+  const oStart = str.indexOf("{");
+  const oEnd = str.lastIndexOf("}");
+  if (oStart !== -1 && oEnd !== -1 && oEnd > oStart) {
+    return str.slice(oStart, oEnd + 1).trim();
+  }
+
+  // Or array
+  const aStart = str.indexOf("[");
+  const aEnd = str.lastIndexOf("]");
+  if (aStart !== -1 && aEnd !== -1 && aEnd > aStart) {
+    return str.slice(aStart, aEnd + 1).trim();
+  }
+
+  return "";
 }
 
 function tryParseJson(raw: string) {
-  const cleaned = extractJsonObject(stripCodeFences(raw));
+  const cleaned = extractJsonValue(stripCodeFences(raw));
   if (!cleaned) return { ok: false as const, cleaned: "", json: null };
 
   try {
@@ -61,6 +74,28 @@ function tryParseJson(raw: string) {
   } catch {
     return { ok: false as const, cleaned, json: null };
   }
+}
+
+// -------------------------------
+// Normalization helpers
+// -------------------------------
+function normalizeOnePagerBlocks(onePagerJson: any) {
+  let blocks: any[] = [];
+
+  if (Array.isArray(onePagerJson)) blocks = onePagerJson;
+  else if (Array.isArray(onePagerJson?.blocks)) blocks = onePagerJson.blocks;
+  else if (Array.isArray(onePagerJson?.sections)) blocks = onePagerJson.sections;
+  else if (Array.isArray(onePagerJson?.beats)) blocks = onePagerJson.beats;
+  else if (Array.isArray(onePagerJson?.items)) blocks = onePagerJson.items;
+
+  blocks = (blocks || []).map((b, idx) => ({
+    id: b?.id ?? idx + 1,
+    title: b?.title ?? b?.heading ?? `Beat ${idx + 1}`,
+    content: b?.content ?? b?.body ?? b?.text ?? b?.copy ?? "",
+    details: b?.details ?? b?.notes ?? b?.extras ?? "",
+  }));
+
+  return blocks.filter((b) => (b.title && String(b.title).trim()) || (b.content && String(b.content).trim()));
 }
 
 app.post("/api/content-factory", async (req, res) => {
@@ -206,7 +241,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const one_pager_text = String(r?.output_text ?? r?.finalOutput ?? "").trim();
 
-      // 4) Parse JSON safely
+      // 4) Parse JSON safely (supports JSON wrapped in fences + array roots)
       const parsed = tryParseJson(one_pager_text);
 
       if (!parsed.ok) {
@@ -219,10 +254,12 @@ app.post("/api/content-factory", async (req, res) => {
           })
           .eq("id", run_id);
 
+        // IMPORTANT: 200 so UI can show debug without fetch() throwing on !res.ok
         return res.status(200).json({
           run_id,
           one_pager_json: null,
           one_pager_text,
+          blocks: [],
           error: "One-pager agent returned invalid JSON.",
           debug: {
             cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
@@ -233,7 +270,44 @@ app.post("/api/content-factory", async (req, res) => {
 
       const one_pager_json = parsed.json;
 
-      // 5) Save
+      // 4.5) Normalize blocks server-side so UI has a consistent shape
+      const blocks = normalizeOnePagerBlocks(one_pager_json);
+
+      if (!blocks.length) {
+        await supabase
+          .from("content_runs")
+          .update({
+            status: "FAILED",
+            last_error: "One-pager JSON parsed but produced zero blocks after normalization",
+            one_pager_text,
+            one_pager_json,
+          })
+          .eq("id", run_id);
+
+        // IMPORTANT: 200 so UI can show debug without fetch() throwing on !res.ok
+        return res.status(200).json({
+          run_id,
+          one_pager_json,
+          one_pager_text,
+          blocks: [],
+          error: "One-pager returned no blocks after normalization.",
+          debug: {
+            top_level_keys:
+              one_pager_json && typeof one_pager_json === "object" && !Array.isArray(one_pager_json)
+                ? Object.keys(one_pager_json)
+                : null,
+            sample: Array.isArray(one_pager_json)
+              ? one_pager_json.slice(0, 2)
+              : one_pager_json?.blocks?.slice?.(0, 2) ??
+                one_pager_json?.sections?.slice?.(0, 2) ??
+                one_pager_json?.beats?.slice?.(0, 2) ??
+                one_pager_json?.items?.slice?.(0, 2) ??
+                null,
+          },
+        });
+      }
+
+      // 5) Save (store BOTH raw text + json + normalized blocks)
       await supabase
         .from("content_runs")
         .update({
@@ -243,7 +317,12 @@ app.post("/api/content-factory", async (req, res) => {
         })
         .eq("id", run_id);
 
-      return res.status(200).json({ run_id, one_pager_json, one_pager_text });
+      return res.status(200).json({
+        run_id,
+        one_pager_json,
+        one_pager_text,
+        blocks, // ✅ canonical blocks for UI (so TSX doesn't need to guess)
+      });
     }
 
     return res.status(400).json({
