@@ -13,9 +13,9 @@ export function useDashboardStats() {
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-      // Posts created this week
+      // Posts created this week (from content_runs)
       const { count: postsThisWeek } = await supabase
-        .from("content_items")
+        .from("content_runs")
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
         .gte("created_at", weekAgo.toISOString());
@@ -35,20 +35,45 @@ export function useDashboardStats() {
         .eq("user_id", user.id)
         .eq("status", "published");
 
-      // DM Keywords (active)
-      const { data: dmKeywords } = await supabase
-        .from("dm_keywords")
-        .select("*")
+      // Enquiries from events table
+      const { count: enquiriesCount } = await supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .eq("active", true);
+        .eq("type", "enquiry");
 
+      // Enquiries today
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      const responsesToday = dmKeywords?.filter(
-        (k: any) => k.last_triggered_at && new Date(k.last_triggered_at) >= todayStart
-      ).length || 0;
+      const { count: enquiriesToday } = await supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("type", "enquiry")
+        .gte("occurred_at", todayStart.toISOString());
 
-      // Audits pending
+      // Audit requests from events
+      const { count: auditRequests } = await supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("type", "audit_request");
+
+      // Booked calls from events
+      const { count: bookedCalls } = await supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("type", "booked_call");
+
+      // Conversions from events
+      const { count: conversions } = await supabase
+        .from("events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("type", "conversion");
+
+      // Pending audits (legacy table)
       const { count: pendingAudits } = await supabase
         .from("audits")
         .select("*", { count: "exact", head: true })
@@ -61,54 +86,22 @@ export function useDashboardStats() {
         .eq("user_id", user.id)
         .gte("created_at", weekAgo.toISOString());
 
-      // Brand score (avg of on_brand_score from last 7 days)
-      const { data: recentItems } = await supabase
-        .from("content_items")
-        .select("on_brand_score")
-        .eq("user_id", user.id)
-        .gte("created_at", weekAgo.toISOString())
-        .not("on_brand_score", "is", null);
-
-      const brandScore = recentItems?.length
-        ? Math.round(
-            recentItems.reduce((acc: number, item: any) => acc + item.on_brand_score, 0) /
-              recentItems.length
-          )
-        : 92; // Default score
+      // Brand score - default to 92 as baseline
+      const brandScore = 92;
 
       return {
         postsThisWeek: postsThisWeek || 0,
         scheduledCount: scheduledCount || 0,
         publishedCount: publishedCount || 0,
-        dmKeywordsCount: dmKeywords?.length || 0,
-        responsesToday,
+        enquiriesCount: enquiriesCount || 0,
+        enquiriesToday: enquiriesToday || 0,
+        auditRequests: auditRequests || 0,
+        bookedCalls: bookedCalls || 0,
+        conversions: conversions || 0,
         pendingAudits: pendingAudits || 0,
         newAuditsThisWeek: newAuditsThisWeek || 0,
         brandScore,
       };
-    },
-    enabled: !!user,
-  });
-
-  const { data: recentOutputs, isLoading: recentLoading } = useQuery({
-    queryKey: ["recent_outputs", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-
-      const { data, error } = await supabase
-        .from("content_items")
-        .select(`
-          *,
-          scripts(*),
-          one_pagers(*),
-          designs(*)
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      return data;
     },
     enabled: !!user,
   });
@@ -118,13 +111,15 @@ export function useDashboardStats() {
       postsThisWeek: 0,
       scheduledCount: 0,
       publishedCount: 0,
-      dmKeywordsCount: 0,
-      responsesToday: 0,
+      enquiriesCount: 0,
+      enquiriesToday: 0,
+      auditRequests: 0,
+      bookedCalls: 0,
+      conversions: 0,
       pendingAudits: 0,
       newAuditsThisWeek: 0,
       brandScore: 92,
     },
-    recentOutputs: recentOutputs || [],
-    isLoading: isLoading || recentLoading,
+    isLoading,
   };
 }

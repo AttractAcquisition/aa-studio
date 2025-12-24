@@ -7,12 +7,12 @@ export function useContentItems() {
   const queryClient = useQueryClient();
 
   const { data: contentItems, isLoading } = useQuery({
-    queryKey: ["content_items", user?.id],
+    queryKey: ["content_runs", user?.id],
     queryFn: async () => {
       if (!user) return [];
 
       const { data, error } = await supabase
-        .from("content_items")
+        .from("content_runs")
         .select(`
           *,
           scripts(*),
@@ -31,19 +31,19 @@ export function useContentItems() {
   const createContentItem = useMutation({
     mutationFn: async (item: {
       content_type: string;
-      series?: string;
+      series: string;
+      target_audience: string;
       title?: string;
       hook?: string;
-      target_audience?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
-        .from("content_items")
+        .from("content_runs")
         .insert({
           ...item,
           user_id: user.id,
-          status: "draft",
+          status: "DRAFT",
         })
         .select()
         .single();
@@ -52,7 +52,7 @@ export function useContentItems() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["content_items", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["content_runs", user?.id] });
     },
   });
 
@@ -63,14 +63,12 @@ export function useContentItems() {
     }: {
       id: string;
       status?: string;
-      title?: string;
-      on_brand_score?: number;
-      published_at?: string;
+      hook?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
-        .from("content_items")
+        .from("content_runs")
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq("id", id)
         .select()
@@ -80,7 +78,7 @@ export function useContentItems() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["content_items", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["content_runs", user?.id] });
     },
   });
 
@@ -128,7 +126,7 @@ export function useContentItems() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["content_items", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["content_runs", user?.id] });
     },
   });
 
@@ -140,7 +138,7 @@ export function useContentItems() {
     }: {
       contentItemId: string;
       markdown: string;
-      blocks: any;
+      blocks: Record<string, unknown>;
     }) => {
       // Check if one pager exists
       const { data: existing } = await supabase
@@ -152,7 +150,7 @@ export function useContentItems() {
       if (existing) {
         const { data, error } = await supabase
           .from("one_pagers")
-          .update({ markdown, blocks })
+          .update({ markdown, blocks: blocks as any })
           .eq("id", existing.id)
           .select()
           .single();
@@ -161,11 +159,11 @@ export function useContentItems() {
       } else {
         const { data, error } = await supabase
           .from("one_pagers")
-          .insert({
+          .insert([{
             content_item_id: contentItemId,
             markdown,
-            blocks,
-          })
+            blocks: blocks as any,
+          }])
           .select()
           .single();
         if (error) throw error;
@@ -173,7 +171,7 @@ export function useContentItems() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["content_items", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["content_runs", user?.id] });
     },
   });
 
@@ -188,25 +186,25 @@ export function useContentItems() {
       contentItemId: string;
       templateId?: string;
       format: string;
-      designJson: any;
+      designJson: Record<string, unknown>;
       renderedAssetId?: string;
     }) => {
       const { data, error } = await supabase
         .from("designs")
-        .insert({
+        .insert([{
           content_item_id: contentItemId,
           template_id: templateId,
           format,
-          design_json: designJson,
+          design_json: designJson as any,
           rendered_asset_id: renderedAssetId,
-        })
+        }])
         .select()
         .single();
       if (error) throw error;
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["content_items", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["content_runs", user?.id] });
     },
   });
 

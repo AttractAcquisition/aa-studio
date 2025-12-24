@@ -6,10 +6,10 @@
 
 @layer base {
   :root {
-    /* AA Studio Brand Colors */
+    /* AA Studio Brand Colors - Single source of truth: #6A00F4 */
     --deep-ink: 220 48% 7%;
-    --deep-purple: 268 100% 48%;
-    --electric-purple: 268 100% 65%;
+    --deep-purple: 268 100% 48%; /* #6A00F4 */
+    --electric-purple: 268 85% 60%; /* Lighter variant */
     --light-lavender: 268 100% 92%;
     --pure-white: 0 0% 100%;
     
@@ -23,7 +23,7 @@
     --popover: 220 40% 10%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 268 100% 48%;
+    --primary: 268 100% 48%; /* #6A00F4 - THE accent color */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 40% 14%;
@@ -32,7 +32,7 @@
     --muted: 220 30% 18%;
     --muted-foreground: 220 20% 60%;
 
-    --accent: 268 100% 65%;
+    --accent: 268 100% 48%; /* Same as primary for consistency */
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -55,7 +55,7 @@
     --sidebar-ring: 268 100% 48%;
 
     /* AA Specific tokens */
-    --aa-gradient-primary: linear-gradient(135deg, hsl(268 100% 48%), hsl(268 100% 65%));
+    --aa-gradient-primary: linear-gradient(135deg, hsl(268 100% 48%), hsl(268 85% 60%));
     --aa-gradient-lavender: linear-gradient(135deg, hsl(268 100% 92%), hsl(268 100% 85%));
     --aa-shadow-glow: 0 0 60px hsl(268 100% 48% / 0.3);
     --aa-shadow-card: 0 4px 24px hsl(220 48% 7% / 0.4);

@@ -12,6 +12,7 @@ import ContentCalendar from "./pages/ContentCalendar";
 import AssetVault from "./pages/AssetVault";
 import ProofVault from "./pages/ProofVault";
 import Exports from "./pages/Exports";
+import Enquiries from "./pages/Enquiries";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/assets" element={<AuthGuard><AssetVault /></AuthGuard>} />
           <Route path="/proofs" element={<AuthGuard><ProofVault /></AuthGuard>} />
           <Route path="/exports" element={<AuthGuard><Exports /></AuthGuard>} />
+          <Route path="/enquiries" element={<AuthGuard><Enquiries /></AuthGuard>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

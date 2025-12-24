@@ -51,16 +51,16 @@ export default function Dashboard() {
       trendValue: "Total" 
     },
     { 
-      title: "DM Keywords", 
-      value: stats.dmKeywordsCount, 
-      subtitle: "Active triggers", 
+      title: "Enquiries", 
+      value: stats.enquiriesCount, 
+      subtitle: "Total logged", 
       icon: MessageSquare, 
       trend: "up" as const, 
-      trendValue: `${stats.responsesToday} responses today` 
+      trendValue: `${stats.enquiriesToday} today` 
     },
     { 
-      title: "Audits Requested", 
-      value: stats.pendingAudits, 
+      title: "Audit Requests", 
+      value: stats.auditRequests + stats.pendingAudits, 
       subtitle: "Pending review", 
       icon: ClipboardCheck, 
       trend: "neutral" as const, 
