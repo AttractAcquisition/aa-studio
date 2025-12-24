@@ -23,43 +23,20 @@ const supabase =
     : null;
 
 // ✅ Healthcheck for Railway
-app.get("/health", (_req, res) => {
-  return res.status(200).json({ ok: true });
-});
+app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 
 // ✅ Prevent GET HTML errors
-app.get("/api/content-factory", (_req, res) => {
-  return res.status(405).json({ error: "Use POST" });
-});
-
-type Body =
-  | {
-      action: "generate_script";
-      inputs: {
-        content_type: string;
-        series: string;
-        hook?: string;
-        target_audience: string;
-      };
-      idempotency_key?: string;
-    }
-  | {
-      action: "generate_one_pager";
-      run_id: string;
-      idempotency_key?: string;
-    };
+app.get("/api/content-factory", (_req, res) => res.status(405).json({ error: "Use POST" }));
 
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 app.post("/api/content-factory", async (req, res) => {
   try {
-    const body = req.body as Body;
+    const body = req.body as any;
 
     const userId = req.header("x-user-id");
-    if (!userId) {
-      return res.status(401).json({ error: "Missing x-user-id header" });
-    }
+    if (!userId) return res.status(401).json({ error: "Missing x-user-id header" });
     if (!uuidRegex.test(userId)) {
       return res.status(400).json({
         error: "x-user-id must be a UUID",
@@ -67,9 +44,9 @@ app.post("/api/content-factory", async (req, res) => {
       });
     }
 
-    // ---------------------------
-    // ACTION: generate_script
-    // ---------------------------
+    // -------------------------------
+    // ACTION 1: GENERATE SCRIPT
+    // -------------------------------
     if (body?.action === "generate_script") {
       const { content_type, series, hook, target_audience } = body.inputs ?? {};
       if (!content_type || !series || !target_audience) {
@@ -79,7 +56,7 @@ app.post("/api/content-factory", async (req, res) => {
         });
       }
 
-      // 1) Create DB row (optional but recommended)
+      // 1) Create DB row
       let run_id = crypto.randomUUID();
       if (supabase) {
         const { data, error } = await supabase
@@ -100,7 +77,7 @@ app.post("/api/content-factory", async (req, res) => {
         run_id = data.id;
       }
 
-      // 2) Build single text prompt for the workflow
+      // 2) Build prompt
       const input_as_text = [
         `content_type: ${content_type}`,
         `series: ${series}`,
@@ -108,141 +85,122 @@ app.post("/api/content-factory", async (req, res) => {
         `target_audience: ${target_audience}`,
       ].join("\n");
 
-      // 3) Run ONLY the script agent branch
+      // 3) Run script agent
       const workflowResult = await runWorkflow({
         agent: "script_agent",
         input_as_text,
       });
 
-      // 4) Extract from YOUR workflow return shape
       const script_text =
-        (workflowResult as any)?.script_text ??
-        (workflowResult as any)?.finalOutput ??
-        (workflowResult as any)?.output_text ??
-        "";
-
-      const brief_json = (workflowResult as any)?.brief_json ?? null;
-      const script_json = (workflowResult as any)?.script_json ?? null;
+        workflowResult?.script_text ?? workflowResult?.finalOutput ?? workflowResult?.output_text ?? "";
 
       if (!script_text) {
         if (supabase) {
           await supabase
             .from("content_runs")
-            .update({
-              status: "FAILED",
-              last_error: "No script text returned (check aa-workflow.ts return shape)",
-            })
+            .update({ status: "FAILED", last_error: "No script text returned" })
             .eq("id", run_id);
         }
-
-        return res.status(500).json({
-          error: "Workflow returned no script text.",
-          debug: { workflowKeys: Object.keys(workflowResult || {}) },
-        });
+        return res.status(500).json({ error: "Workflow returned no script text." });
       }
 
-      // 5) Save results
+      // 4) Save results
       if (supabase) {
         await supabase
           .from("content_runs")
           .update({
             status: "SCRIPT_DONE",
-            brief_json,
-            script_json,
             script_text,
+            script_json: null,
+            brief_json: null,
           })
           .eq("id", run_id);
       }
 
-      return res.status(200).json({ run_id, brief_json, script_json, script_text });
+      return res.status(200).json({ run_id, script_text, brief_json: null, script_json: null });
     }
 
-    // ---------------------------
-    // ACTION: generate_one_pager
-    // ---------------------------
+    // -------------------------------
+    // ACTION 2: GENERATE ONE-PAGER
+    // -------------------------------
     if (body?.action === "generate_one_pager") {
-      const { run_id } = body as any;
+      const run_id = body.run_id as string;
       if (!run_id || !uuidRegex.test(run_id)) {
-        return res.status(400).json({ error: "run_id must be a UUID" });
-      }
-      if (!supabase) {
-        return res.status(500).json({ error: "Supabase is not configured on server" });
+        return res.status(400).json({ error: "Missing or invalid run_id (UUID required)" });
       }
 
-      // 1) Load existing run (and make sure it belongs to this user)
-      const { data: runRow, error: fetchErr } = await supabase
+      if (!supabase) {
+        return res.status(500).json({ error: "Supabase not configured on API (missing env vars)" });
+      }
+
+      // 1) Load the script from DB
+      const { data: row, error: fetchErr } = await supabase
         .from("content_runs")
-        .select("id,user_id,content_type,series,hook,target_audience,script_text")
+        .select("id, user_id, content_type, series, hook, target_audience, script_text")
         .eq("id", run_id)
         .single();
 
       if (fetchErr) throw fetchErr;
-      if (!runRow) return res.status(404).json({ error: "Run not found" });
-      if (runRow.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      if (!row) return res.status(404).json({ error: "Run not found" });
+      if (row.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      if (!row.script_text) return res.status(400).json({ error: "Run has no script_text yet" });
 
-      if (!runRow.script_text || !String(runRow.script_text).trim()) {
-        return res.status(400).json({ error: "Missing script_text on run. Generate script first." });
-      }
-
-      // 2) Mark status
-      await supabase
-        .from("content_runs")
-        .update({ status: "ONEPAGER_DRAFT" })
-        .eq("id", run_id);
-
-      // 3) Build input for one-pager agent
+      // 2) Build prompt: meta + SCRIPT
       const input_as_text = [
-        `content_type: ${runRow.content_type}`,
-        `series: ${runRow.series}`,
-        `hook: ${runRow.hook ?? ""}`,
-        `target_audience: ${runRow.target_audience}`,
+        `content_type: ${row.content_type}`,
+        `series: ${row.series}`,
+        `hook: ${row.hook ?? ""}`,
+        `target_audience: ${row.target_audience}`,
         ``,
         `SCRIPT:`,
-        String(runRow.script_text),
+        row.script_text,
       ].join("\n");
 
-      // 4) Run one-pager agent branch
-      const workflowResult = await runWorkflow({
+      // 3) Run one-pager agent
+      const r = await runWorkflow({
         agent: "one_pager_agent",
         input_as_text,
       });
 
-      // IMPORTANT: for step 1+2 we’ll store whatever comes back as JSONB.
-      // Later we’ll enforce strict JSON output.
-      const one_pager_json =
-        (workflowResult as any)?.one_pager_json ??
-        (workflowResult as any)?.finalOutput ??
-        (workflowResult as any)?.output_text ??
-        null;
+      const one_pager_text = r?.output_text ?? r?.finalOutput ?? "";
 
-      if (!one_pager_json) {
+      // 4) Parse JSON safely
+      let one_pager_json: any = null;
+      try {
+        one_pager_json = JSON.parse(one_pager_text);
+      } catch {
         await supabase
           .from("content_runs")
           .update({
             status: "FAILED",
-            last_error: "No one_pager_json returned (check aa-workflow.ts one_pager_agent branch)",
+            last_error: "One-pager agent did not return valid JSON",
+            one_pager_text,
           })
           .eq("id", run_id);
 
         return res.status(500).json({
-          error: "Workflow returned no one-pager output.",
-          debug: { workflowKeys: Object.keys(workflowResult || {}) },
+          error: "One-pager agent returned invalid JSON.",
+          debug: { sample: String(one_pager_text).slice(0, 200) },
         });
       }
 
-      // 5) Save one-pager result
+      // 5) Save
       await supabase
         .from("content_runs")
         .update({
-          status: "ONEPAGER_DONE",
+          status: "ONE_PAGER_DONE",
+          one_pager_text,
           one_pager_json,
         })
         .eq("id", run_id);
 
-      return res.status(200).json({ run_id, one_pager_json });
+      return res.status(200).json({ run_id, one_pager_json, one_pager_text });
     }
 
-    return res.status(400).json({ error: "Unsupported action" });
+    return res.status(400).json({
+      error: "Unsupported action",
+      supported: ["generate_script", "generate_one_pager"],
+    });
   } catch (e: any) {
     console.error(e);
     return res.status(500).json({ error: e?.message ?? "Unknown error" });
