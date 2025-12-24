@@ -126,5 +126,12 @@ app.post("/api/content-factory", async (req, res) => {
 });
 
 // ✅ Railway requires binding to process.env.PORT
-const port = Number(process.env.PORT || 3001);
-app.listen(port, "0.0.0.0", () => console.log(`API listening on http://0.0.0.0:${port}`));
+const PORT = Number(process.env.PORT) || 3001;
+
+app.get("/health", (_req, res) => {
+  return res.status(200).json({ ok: true });
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`API listening on http://0.0.0.0:${PORT}`);
+});
