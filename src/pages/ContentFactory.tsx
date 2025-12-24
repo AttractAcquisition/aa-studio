@@ -32,6 +32,9 @@ import { uploadBlobToBucket, createAssetRow } from "@/lib/supabase-helpers";
 import { useAuth } from "@/hooks/useAuth";
 import html2canvas from "html2canvas";
 
+// ✅ NEW: document-style one-pager component (white page layout)
+import { AaOnePagerDocument } from "@/components/onepager/AaOnePagerDocument";
+
 const contentTypes = [
   { value: "attraction-psychology", label: "Attraction Psychology" },
   { value: "framework", label: "Framework" },
@@ -357,8 +360,9 @@ export default function ContentFactory() {
     setIsSaving(true);
 
     try {
+      // ✅ Export as a "real document": white background
       const canvas = await html2canvas(designRef.current, {
-        backgroundColor: "#0B0F19",
+        backgroundColor: "#ffffff",
         scale: 2,
       });
 
@@ -660,6 +664,7 @@ export default function ContentFactory() {
               </div>
             </div>
           )}
+
           {/* Step 3: One-Pager */}
           {currentStep === 3 && (
             <div className="space-y-6">
@@ -669,7 +674,8 @@ export default function ContentFactory() {
                     One-Pager Builder
                   </h2>
                   <p className="text-muted-foreground">
-                    Edit the beats. These will be used to generate the final design.
+                    Edit the beats. These will be used to generate the final
+                    design.
                   </p>
                 </div>
 
@@ -802,11 +808,13 @@ export default function ContentFactory() {
                     </SelectTrigger>
                     <SelectContent>
                       {(templates ?? []).map((t: any) => (
-                        <SelectItem key={t.id ?? t.slug ?? t.name} value={String(t.id ?? t.slug ?? t.name)}>
+                        <SelectItem
+                          key={t.id ?? t.slug ?? t.name}
+                          value={String(t.id ?? t.slug ?? t.name)}
+                        >
                           {t.name ?? t.title ?? t.slug ?? "Template"}
                         </SelectItem>
                       ))}
-                      {/* safe fallback if templates list is empty */}
                       {(templates ?? []).length === 0 && (
                         <SelectItem value="default">Default</SelectItem>
                       )}
@@ -824,6 +832,7 @@ export default function ContentFactory() {
                       <SelectItem value="4:5">4:5 (IG Feed)</SelectItem>
                       <SelectItem value="1:1">1:1 (Square)</SelectItem>
                       <SelectItem value="9:16">9:16 (Reels Cover)</SelectItem>
+                      <SelectItem value="a4">A4 (Document)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -843,7 +852,6 @@ export default function ContentFactory() {
                       variant="outline"
                       className="flex-1"
                       onClick={() => {
-                        // simple “shuffle” rerender trigger if needed later
                         setSelectedTemplate((prev) => prev ?? "default");
                       }}
                     >
@@ -866,69 +874,17 @@ export default function ContentFactory() {
                       "w-full flex items-center justify-center rounded-3xl border border-border/40 bg-[#0B0F19] p-6",
                       selectedFormat === "4:5" && "aspect-[4/5]",
                       selectedFormat === "1:1" && "aspect-square",
-                      selectedFormat === "9:16" && "aspect-[9/16]"
+                      selectedFormat === "9:16" && "aspect-[9/16]",
+                      selectedFormat === "a4" && "aspect-[210/297]"
                     )}
                   >
-                    <div
-                      ref={designRef}
-                      className="w-full h-full rounded-3xl overflow-hidden border border-white/5"
-                    >
-                      {/* Simple AA-style one-pager layout */}
-                      <div className="h-full w-full p-8 bg-[#0B0F19] text-white flex flex-col">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="text-xs tracking-widest uppercase text-white/60">
-                              Attract Acquisition • {series || "Series"}
-                            </div>
-                            <div className="mt-2 text-3xl font-semibold leading-tight">
-                              {hook?.trim() ? hook.trim() : "One-Pager"}
-                            </div>
-                            <div className="mt-2 text-sm text-white/60">
-                              Audience: {audience}
-                            </div>
-                          </div>
-
-                          <div className="shrink-0">
-                            <div className="w-12 h-12 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
-                              AA
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 grid grid-cols-1 gap-4">
-                          {onePagerBlocks.slice(0, 5).map((b, idx) => (
-                            <div
-                              key={b.id ?? idx}
-                              className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-xl bg-[#6A00F4]/90 flex items-center justify-center text-xs font-bold">
-                                  {idx + 1}
-                                </div>
-                                <div className="font-semibold">{b.title}</div>
-                              </div>
-
-                              <div className="text-sm leading-relaxed text-white/90 whitespace-pre-wrap">
-                                {b.content}
-                              </div>
-
-                              {b.details?.trim() ? (
-                                <div className="mt-3 text-xs text-white/60 whitespace-pre-wrap">
-                                  {b.details}
-                                </div>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="mt-auto pt-6 flex items-center justify-between text-xs text-white/50">
-                          <div>
-                            Template: {selectedTemplate ?? "default"} • Format:{" "}
-                            {selectedFormat}
-                          </div>
-                          <div className="text-white/60">aa-brand-studio</div>
-                        </div>
-                      </div>
+                    <div ref={designRef} className="w-full h-full rounded-3xl overflow-hidden">
+                      <AaOnePagerDocument
+                        series={series}
+                        hook={hook}
+                        audience={audience}
+                        blocks={onePagerBlocks}
+                      />
                     </div>
                   </div>
                 </div>
@@ -945,9 +901,12 @@ export default function ContentFactory() {
                   <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
                     <div className="font-semibold mb-2">What’s next</div>
                     <div className="text-sm text-muted-foreground">
-                      Next we’ll wire the <span className="text-foreground">one_pager_agent</span> to
-                      output structured JSON (blocks + layout hints), then the <span className="text-foreground">design_agent</span>{" "}
-                      to pick a template + generate style tokens (typography, spacing, emphasis).
+                      Next we’ll wire the{" "}
+                      <span className="text-foreground">one_pager_agent</span> to
+                      output structured JSON (blocks + layout hints), then the{" "}
+                      <span className="text-foreground">design_agent</span> to pick
+                      a template + generate style tokens (typography, spacing,
+                      emphasis).
                     </div>
                   </div>
                 </div>
@@ -985,4 +944,3 @@ export default function ContentFactory() {
     </AppLayout>
   );
 }
- 
