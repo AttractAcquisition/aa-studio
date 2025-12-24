@@ -65,19 +65,24 @@ export function useProofCards() {
 
       if (insertError) throw insertError;
 
-      // Try to generate AI image
+      // Try to generate AI image via content factory endpoint
       try {
         const response = await fetch("/api/content-factory", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "generate_proof_card",
-            claim: params.claim,
-            metric: params.metric,
-            timeframe: params.timeframe,
-            proof_type: params.proof_type || "result",
-            client_name: params.client_name,
-            accent_color: "#6A00F4",
+            action: "generate_design",
+            kind: "proof-card",
+            ratio: "1:1",
+            mode: "clean",
+            inputs: {
+              accent: "#6A00F4",
+              client_name: params.client_name || "Client",
+              claim: params.claim,
+              metric: params.metric || "",
+              timeframe: params.timeframe || "",
+              brand: "Attract Acquisition",
+            },
           }),
         });
 

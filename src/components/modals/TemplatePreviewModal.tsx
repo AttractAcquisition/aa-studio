@@ -6,12 +6,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
+import { getAssetPublicUrl } from "@/lib/supabase-helpers";
 
 interface TemplatePreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   template: {
     id: string;
+    key?: string;
     name: string;
     description?: string;
     category?: string;
@@ -21,6 +23,21 @@ interface TemplatePreviewModalProps {
   previewComponent?: React.ReactNode;
 }
 
+function getPreviewUrl(path?: string): string | null {
+  if (!path) return null;
+  // If already a full URL, use as-is
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  // If contains bucket/path format like "aa-designs/user_id/file.png"
+  const parts = path.split("/");
+  if (parts.length >= 2) {
+    const bucket = parts[0];
+    const filePath = parts.slice(1).join("/");
+    return getAssetPublicUrl(bucket, filePath);
+  }
+  // Fallback: assume aa-designs bucket
+  return getAssetPublicUrl("aa-designs", path);
+}
+
 export function TemplatePreviewModal({
   open,
   onOpenChange,
@@ -28,6 +45,8 @@ export function TemplatePreviewModal({
   previewComponent,
 }: TemplatePreviewModalProps) {
   if (!template) return null;
+
+  const previewUrl = getPreviewUrl(template.preview_asset_path);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,20 +84,23 @@ export function TemplatePreviewModal({
             <p className="text-sm text-muted-foreground">{template.description}</p>
           )}
 
-          {/* Preview */}
+          {/* Preview - prioritize previewComponent, then preview URL, then fallback */}
           <div className="aspect-[4/5] rounded-2xl bg-deep-ink overflow-hidden">
-            {previewComponent || (
-              template.preview_asset_path ? (
-                <img
-                  src={template.preview_asset_path}
-                  alt={template.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <span className="text-muted-foreground">No preview available</span>
-                </div>
-              )
+            {previewComponent ? (
+              previewComponent
+            ) : previewUrl ? (
+              <img
+                src={previewUrl}
+                alt={template.name}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <span className="text-muted-foreground">No preview available</span>
+              </div>
             )}
           </div>
         </div>

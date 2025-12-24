@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Eye, Edit, Copy } from "lucide-react";
+import { Eye, Edit, Copy, Lock } from "lucide-react";
 
 interface TemplateCardProps {
   type: string;
@@ -10,9 +10,21 @@ interface TemplateCardProps {
   preview: React.ReactNode;
   onPreview?: () => void;
   onEdit?: () => void;
+  onDuplicate?: () => void;
+  isSystem?: boolean;
 }
 
-export function TemplateCard({ type, title, description, formats, preview, onPreview, onEdit }: TemplateCardProps) {
+export function TemplateCard({ 
+  type, 
+  title, 
+  description, 
+  formats, 
+  preview, 
+  onPreview, 
+  onEdit,
+  onDuplicate,
+  isSystem,
+}: TemplateCardProps) {
   return (
     <div className="aa-card group hover:border-primary/30 transition-all duration-300">
       {/* Preview */}
@@ -24,10 +36,23 @@ export function TemplateCard({ type, title, description, formats, preview, onPre
               <Eye className="w-4 h-4 mr-1" />
               Preview
             </Button>
-            <Button variant="gradient" size="sm" onClick={onEdit}>
-              <Edit className="w-4 h-4 mr-1" />
-              Edit
-            </Button>
+            {isSystem ? (
+              <Button variant="gradient" size="sm" onClick={onDuplicate}>
+                <Copy className="w-4 h-4 mr-1" />
+                Duplicate
+              </Button>
+            ) : (
+              <>
+                <Button variant="gradient" size="sm" onClick={onEdit}>
+                  <Edit className="w-4 h-4 mr-1" />
+                  Edit
+                </Button>
+                <Button variant="outline" size="sm" onClick={onDuplicate}>
+                  <Copy className="w-4 h-4 mr-1" />
+                  Copy
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -36,6 +61,12 @@ export function TemplateCard({ type, title, description, formats, preview, onPre
       <div>
         <div className="flex items-center gap-2 mb-2">
           <span className="aa-pill bg-primary/10 text-primary text-[10px]">{type}</span>
+          {isSystem && (
+            <span className="aa-pill-outline text-[10px] flex items-center gap-1">
+              <Lock className="w-3 h-3" />
+              System
+            </span>
+          )}
           {formats.map((format) => (
             <span key={format} className="aa-pill-outline text-[10px]">{format}</span>
           ))}

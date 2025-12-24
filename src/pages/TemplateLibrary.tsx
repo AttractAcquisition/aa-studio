@@ -33,9 +33,10 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Filter, RefreshCw } from "lucide-react";
+import { Plus, Filter, RefreshCw, Copy } from "lucide-react";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useToast } from "@/hooks/use-toast";
+import { getAssetPublicUrl } from "@/lib/supabase-helpers";
 
 // Preview components for system templates
 const templatePreviews: Record<string, React.ReactNode> = {
@@ -127,11 +128,52 @@ export default function TemplateLibrary() {
   };
 
   const getTemplatePreview = (template: any) => {
-    return templatePreviews[template.key] || (
+    // First check for system template preview component
+    if (templatePreviews[template.key]) {
+      return templatePreviews[template.key];
+    }
+    // Then check for preview_asset_path
+    if (template.preview_asset_path) {
+      const url = template.preview_asset_path.startsWith("http") 
+        ? template.preview_asset_path 
+        : getAssetPublicUrl(
+            template.preview_asset_path.split("/")[0] || "aa-designs",
+            template.preview_asset_path.split("/").slice(1).join("/") || template.preview_asset_path
+          );
+      return (
+        <div className="aspect-[4/5] bg-secondary rounded-xl overflow-hidden">
+          <img 
+            src={url} 
+            alt={template.name} 
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.target as HTMLImageElement).style.display = "none";
+            }}
+          />
+        </div>
+      );
+    }
+    // Fallback
+    return (
       <div className="aspect-[4/5] bg-secondary rounded-xl flex items-center justify-center">
         <span className="text-muted-foreground text-sm">{template.name}</span>
       </div>
     );
+  };
+
+  const handleDuplicateTemplate = (template: any) => {
+    createTemplate({
+      key: `${template.key}-copy-${Date.now()}`,
+      name: `${template.name} (Copy)`,
+      category: template.category,
+      description: template.description,
+      formats: template.formats,
+      preview_asset_path: template.preview_asset_path,
+    });
+    toast({
+      title: "Template duplicated!",
+      description: "You can now edit your copy.",
+    });
   };
 
   return (
@@ -222,13 +264,15 @@ export default function TemplateLibrary() {
                     if (template.is_system) {
                       toast({
                         title: "System template",
-                        description: "System templates cannot be edited. Create a copy instead.",
+                        description: "System templates cannot be edited. Use 'Duplicate' to create an editable copy.",
                         variant: "destructive",
                       });
                     } else {
                       navigate(`/templates/${template.id}/edit`);
                     }
                   }}
+                  onDuplicate={() => handleDuplicateTemplate(template)}
+                  isSystem={template.is_system}
                 />
               </div>
             ))}

@@ -25,6 +25,7 @@ import {
   openHtmlInNewTab,
 } from "@/lib/export-utils";
 import { uploadBlobToBucket, createAssetRow } from "@/lib/supabase-helpers";
+import { supabase } from "@/integrations/supabase/client";
 
 type ToastFn = (opts: {
   title: string;
@@ -137,6 +138,34 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       }
 
       setScript(scriptText);
+      
+      // Save script to database
+      const wc = scriptText.trim().split(/\s+/).filter(Boolean).length;
+      const est = Math.round(wc * 0.4);
+      
+      // Upsert into scripts table
+      const { data: existingScript } = await supabase
+        .from("scripts")
+        .select("id")
+        .eq("content_item_id", data.run_id)
+        .maybeSingle();
+      
+      if (existingScript) {
+        await supabase
+          .from("scripts")
+          .update({ text: scriptText, word_count: wc, est_seconds: est })
+          .eq("id", existingScript.id);
+      } else {
+        await supabase
+          .from("scripts")
+          .insert({
+            content_item_id: data.run_id,
+            text: scriptText,
+            word_count: wc,
+            est_seconds: est,
+          });
+      }
+      
       setCurrentStep(2);
 
       // Reset downstream
@@ -192,6 +221,32 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       }
 
       setOnePagerBlocks(blocks);
+      
+      // Save one-pager to database
+      const { data: existingOnePager } = await supabase
+        .from("one_pagers")
+        .select("id")
+        .eq("content_item_id", contentItemId)
+        .maybeSingle();
+      
+      const blocksJson = { blocks } as Record<string, unknown>;
+      const markdown = blocks.map((b: OnePagerBlock) => `## ${b.title || ""}\n${b.body || b.content || ""}`).join("\n\n");
+      
+      if (existingOnePager) {
+        await supabase
+          .from("one_pagers")
+          .update({ markdown, blocks: blocksJson as any })
+          .eq("id", existingOnePager.id);
+      } else {
+        await supabase
+          .from("one_pagers")
+          .insert({
+            content_item_id: contentItemId,
+            markdown,
+            blocks: blocksJson as any,
+          });
+      }
+      
       setDesignImages({});
       setCurrentStep(3);
 
@@ -302,6 +357,16 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
         }
 
         setDesignImages((prev) => ({ ...prev, [kind]: imageUrl }));
+        
+        // Save design to database
+        const ratio = kind === "bold_text_card" ? "1:1" : kind === "reel_cover" ? "9:16" : "4:5";
+        await supabase
+          .from("designs")
+          .insert({
+            content_item_id: contentItemId,
+            format: ratio,
+            design_json: { kind, ratio, imageUrl: imageUrl.substring(0, 100) } as any, // Don't store full base64 in JSON
+          });
 
         toast({
           title: "Generated",
