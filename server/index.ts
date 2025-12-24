@@ -4,6 +4,7 @@ dotenv.config({ path: ".env.local" });
 import express from "express";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 import { runWorkflow } from "../lib/aa-workflow";
 
 const app = express();
@@ -95,7 +96,11 @@ function normalizeOnePagerBlocks(onePagerJson: any) {
     details: b?.details ?? b?.notes ?? b?.extras ?? "",
   }));
 
-  return blocks.filter((b) => (b.title && String(b.title).trim()) || (b.content && String(b.content).trim()));
+  return blocks.filter(
+    (b) =>
+      (b.title && String(b.title).trim()) ||
+      (b.content && String(b.content).trim())
+  );
 }
 
 app.post("/api/content-factory", async (req, res) => {
@@ -201,7 +206,9 @@ app.post("/api/content-factory", async (req, res) => {
     if (body?.action === "generate_one_pager") {
       const run_id = body.run_id as string;
       if (!run_id || !uuidRegex.test(run_id)) {
-        return res.status(400).json({ error: "Missing or invalid run_id (UUID required)" });
+        return res
+          .status(400)
+          .json({ error: "Missing or invalid run_id (UUID required)" });
       }
 
       if (!supabase) {
@@ -241,7 +248,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const one_pager_text = String(r?.output_text ?? r?.finalOutput ?? "").trim();
 
-      // 4) Parse JSON safely (supports JSON wrapped in fences + array roots)
+      // 4) Parse JSON safely
       const parsed = tryParseJson(one_pager_text);
 
       if (!parsed.ok) {
@@ -254,7 +261,6 @@ app.post("/api/content-factory", async (req, res) => {
           })
           .eq("id", run_id);
 
-        // IMPORTANT: 200 so UI can show debug without fetch() throwing on !res.ok
         return res.status(200).json({
           run_id,
           one_pager_json: null,
@@ -269,8 +275,6 @@ app.post("/api/content-factory", async (req, res) => {
       }
 
       const one_pager_json = parsed.json;
-
-      // 4.5) Normalize blocks server-side so UI has a consistent shape
       const blocks = normalizeOnePagerBlocks(one_pager_json);
 
       if (!blocks.length) {
@@ -278,36 +282,23 @@ app.post("/api/content-factory", async (req, res) => {
           .from("content_runs")
           .update({
             status: "FAILED",
-            last_error: "One-pager JSON parsed but produced zero blocks after normalization",
+            last_error:
+              "One-pager JSON parsed but produced zero blocks after normalization",
             one_pager_text,
             one_pager_json,
           })
           .eq("id", run_id);
 
-        // IMPORTANT: 200 so UI can show debug without fetch() throwing on !res.ok
         return res.status(200).json({
           run_id,
           one_pager_json,
           one_pager_text,
           blocks: [],
           error: "One-pager returned no blocks after normalization.",
-          debug: {
-            top_level_keys:
-              one_pager_json && typeof one_pager_json === "object" && !Array.isArray(one_pager_json)
-                ? Object.keys(one_pager_json)
-                : null,
-            sample: Array.isArray(one_pager_json)
-              ? one_pager_json.slice(0, 2)
-              : one_pager_json?.blocks?.slice?.(0, 2) ??
-                one_pager_json?.sections?.slice?.(0, 2) ??
-                one_pager_json?.beats?.slice?.(0, 2) ??
-                one_pager_json?.items?.slice?.(0, 2) ??
-                null,
-          },
         });
       }
 
-      // 5) Save (store BOTH raw text + json + normalized blocks)
+      // 5) Save
       await supabase
         .from("content_runs")
         .update({
@@ -321,13 +312,105 @@ app.post("/api/content-factory", async (req, res) => {
         run_id,
         one_pager_json,
         one_pager_text,
-        blocks, // ✅ canonical blocks for UI (so TSX doesn't need to guess)
+        blocks,
+      });
+    }
+
+    // -------------------------------
+    // ACTION 3: GENERATE DESIGN (AA_Design_Agent)
+    // -------------------------------
+    if (body?.action === "generate_design") {
+      const run_id = body.run_id as string;
+
+      // Your prompt wants "format" not "kind"
+      const format = (body.format ?? body.kind) as
+        | "one_pager"
+        | "bold_text_card"
+        | "reel_cover";
+
+      const ratio = (body.ratio ?? null) as "4:5" | "1:1" | "9:16" | null;
+      const mode = (body.mode ?? "clean") as "clean" | "punchy";
+
+      if (!run_id || !uuidRegex.test(run_id)) {
+        return res
+          .status(400)
+          .json({ error: "Missing or invalid run_id (UUID required)" });
+      }
+
+      if (!format || !["one_pager", "bold_text_card", "reel_cover"].includes(format)) {
+        return res.status(400).json({
+          error: "Missing or invalid format",
+          supported: ["one_pager", "bold_text_card", "reel_cover"],
+        });
+      }
+
+      if (!supabase) {
+        return res
+          .status(500)
+          .json({ error: "Supabase not configured on API (missing env vars)" });
+      }
+
+      const { data: row, error: fetchErr } = await supabase
+        .from("content_runs")
+        .select("id, user_id, series, hook, target_audience, one_pager_json")
+        .eq("id", run_id)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+      if (!row) return res.status(404).json({ error: "Run not found" });
+      if (row.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
+      if (!row.one_pager_json) {
+        return res.status(400).json({ error: "Run has no one_pager_json yet" });
+      }
+
+      const blocks = normalizeOnePagerBlocks(row.one_pager_json).slice(0, 7);
+
+      // ✅ Match the INPUT section of your prompt exactly
+      const inputPayload = {
+        brand: "Attract Acquisition",
+        series: row.series,
+        title: row.hook ?? "",
+        audience: row.target_audience,
+        blocks,
+        mode,
+        ratio: ratio ?? undefined,
+        format,
+      };
+
+      const input_as_text = JSON.stringify(inputPayload, null, 2);
+
+      const r = await runWorkflow({
+        // ✅ use the agent name implied by your prompt
+        agent: "AA_Design_Agent",
+        input_as_text,
+      });
+
+      const out = String(r?.output_text ?? r?.finalOutput ?? "").trim();
+      const parsed = tryParseJson(out);
+
+      if (!parsed.ok) {
+        return res.status(200).json({
+          run_id,
+          format,
+          design_json: null,
+          error: "Design agent returned invalid JSON.",
+          debug: {
+            cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
+            raw_preview: out.slice(0, 400),
+          },
+        });
+      }
+
+      return res.status(200).json({
+        run_id,
+        format,
+        design_json: parsed.json,
       });
     }
 
     return res.status(400).json({
       error: "Unsupported action",
-      supported: ["generate_script", "generate_one_pager"],
+      supported: ["generate_script", "generate_one_pager", "generate_design"],
     });
   } catch (e: any) {
     console.error(e);
