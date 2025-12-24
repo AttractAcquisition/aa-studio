@@ -843,226 +843,254 @@ export default function ContentFactory() {
   </div>
 )}
 
-          {/* Step 4 (kept as-is) */}
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="aa-headline-md text-foreground mb-2">
-                    Design Preview
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Pick a template + format, preview the one-pager, then export.
-                  </p>
+        {/* Step 4: Design Assets (original 3-column layout) */}
+{currentStep === 4 && (
+  <div className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h2 className="aa-headline-md text-foreground mb-2">Design Assets</h2>
+        <p className="text-muted-foreground">
+          Generate export-ready visuals: Bold Text Card • Reel Cover • One-Pager Cover
+        </p>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* 1) Bold Text Card */}
+      <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-semibold">Bold Text Card</div>
+            <div className="text-xs text-muted-foreground">1:1 square</div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportNodeAsPng(boldTextRef.current, "aa_bold_text_card")}
+            disabled={!hook?.trim()}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export PNG
+          </Button>
+        </div>
+
+        <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
+          <div ref={boldTextRef} className="aspect-square w-full rounded-2xl overflow-hidden">
+            <div className="h-full w-full bg-[#0B0F19] text-white p-7 flex flex-col justify-between">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
+                  Attract Acquisition
                 </div>
-
-                <Button
-                  variant="gradient"
-                  size="lg"
-                  onClick={handleSaveAndExport}
-                  disabled={isSaving || !onePagerBlocks?.length}
-                >
-                  {isSaving ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4 mr-2" />
-                      Save & Export
-                    </>
-                  )}
-                </Button>
-              </div>
-
-              {/* Controls */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Template</Label>
-                  <Select
-                    value={selectedTemplate ?? ""}
-                    onValueChange={(v) => setSelectedTemplate(v)}
-                  >
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Select a template..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(templates ?? []).map((t: any) => (
-                        <SelectItem
-                          key={t.id ?? t.slug ?? t.name}
-                          value={String(t.id ?? t.slug ?? t.name)}
-                        >
-                          {t.name ?? t.title ?? t.slug ?? "Template"}
-                        </SelectItem>
-                      ))}
-                      {(templates ?? []).length === 0 && (
-                        <SelectItem value="default">Default</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Format</Label>
-                  <Select value={selectedFormat} onValueChange={setSelectedFormat}>
-                    <SelectTrigger className="h-12">
-                      <SelectValue placeholder="Select format..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="4:5">4:5 (IG Feed)</SelectItem>
-                      <SelectItem value="1:1">1:1 (Square)</SelectItem>
-                      <SelectItem value="9:16">9:16 (Reels Cover)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Quick actions</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setCurrentStep(3)}
-                    >
-                      <ArrowLeft className="w-4 h-4 mr-2" />
-                      Back to One-Pager
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setSelectedTemplate((prev) => prev ?? "default")}
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Refresh
-                    </Button>
-                  </div>
+                <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                  AA
                 </div>
               </div>
 
-              {/* Preview */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">
-                    Preview (export uses this exact frame)
-                  </div>
-
-                  <div
-                    className={cn(
-                      "w-full flex items-center justify-center rounded-3xl border border-border/40 bg-[#0B0F19] p-6",
-                      selectedFormat === "4:5" && "aspect-[4/5]",
-                      selectedFormat === "1:1" && "aspect-square",
-                      selectedFormat === "9:16" && "aspect-[9/16]"
-                    )}
-                  >
-                    <div
-                      ref={designRef}
-                      className="w-full h-full rounded-3xl overflow-hidden border border-white/5"
-                    >
-                      <div className="h-full w-full p-8 bg-[#0B0F19] text-white flex flex-col">
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <div className="text-xs tracking-widest uppercase text-white/60">
-                              Attract Acquisition • {series || "Series"}
-                            </div>
-                            <div className="mt-2 text-3xl font-semibold leading-tight">
-                              {hook?.trim() ? hook.trim() : "One-Pager"}
-                            </div>
-                            <div className="mt-2 text-sm text-white/60">
-                              Audience: {audience}
-                            </div>
-                          </div>
-
-                          <div className="shrink-0">
-                            <div className="w-12 h-12 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
-                              AA
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-6 grid grid-cols-1 gap-4">
-                          {onePagerBlocks.slice(0, 5).map((b, idx) => (
-                            <div
-                              key={b.id ?? idx}
-                              className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                            >
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="w-7 h-7 rounded-xl bg-[#6A00F4]/90 flex items-center justify-center text-xs font-bold">
-                                  {idx + 1}
-                                </div>
-                                <div className="font-semibold">{b.title}</div>
-                              </div>
-
-                              <div className="text-sm leading-relaxed text-white/90 whitespace-pre-wrap">
-                                {b.content}
-                              </div>
-
-                              {b.details?.trim() ? (
-                                <div className="mt-3 text-xs text-white/60 whitespace-pre-wrap">
-                                  {b.details}
-                                </div>
-                              ) : null}
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="mt-auto pt-6 flex items-center justify-between text-xs text-white/50">
-                          <div>
-                            Template: {selectedTemplate ?? "default"} • Format:{" "}
-                            {selectedFormat}
-                          </div>
-                          <div className="text-white/60">aa-brand-studio</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              <div className="mt-6">
+                <div className="text-4xl font-semibold leading-tight">
+                  {hook?.trim() ? hook.trim() : "YOUR CONTENT IS NOISE."}
                 </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
-                    <div className="font-semibold mb-2">Script (reference)</div>
-                    <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-[360px] overflow-auto">
-                      {script || "No script loaded."}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
-                    <div className="font-semibold mb-2">What’s next</div>
-                    <div className="text-sm text-muted-foreground">
-                      Next we’ll wire the design_agent to pick a template + generate
-                      style tokens.
-                    </div>
-                  </div>
+                <div className="mt-4 text-sm text-white/60 leading-relaxed">
+                  {series ? `Series: ${series}` : "Make your message unignorable."}
                 </div>
               </div>
 
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setCurrentStep(3)}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-
-                <Button
-                  variant="gradient"
-                  size="lg"
-                  onClick={handleSaveAndExport}
-                  disabled={isSaving || !onePagerBlocks?.length}
-                >
-                  {isSaving ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4 mr-2" />
-                      Save & Export
-                    </>
-                  )}
-                </Button>
+              <div className="flex items-center justify-between text-[11px] text-white/50">
+                <div>{audience}</div>
+                <div className="text-white/60">aa-brand-studio</div>
               </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        <div className="pt-4 flex gap-2">
+          <Button
+            variant="gradient"
+            className="flex-1"
+            onClick={() =>
+              toast({
+                title: "Not wired yet",
+                description: "This button is a placeholder. Export works already.",
+              })
+            }
+          >
+            Generate Bold Text Card
+          </Button>
+        </div>
+      </div>
+
+      {/* 2) Reel Cover */}
+      <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-semibold">Reel Cover</div>
+            <div className="text-xs text-muted-foreground">9:16</div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export PNG
+          </Button>
+        </div>
+
+        <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
+          <div ref={reelCoverRef} className="aspect-[9/16] w-full rounded-2xl overflow-hidden">
+            <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
+              <div className="flex items-start justify-between">
+                <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
+                  {series ? series.replaceAll("-", " ") : "Attraction Audit"}
+                </div>
+                <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                  AA
+                </div>
+              </div>
+
+              <div className="mt-6 text-4xl font-semibold leading-tight">
+                {hook?.trim() ? hook.trim() : "This is why your content doesn’t convert."}
+              </div>
+
+              <div className="mt-4 text-sm text-white/65 leading-relaxed">
+                Watch before you post — fix the one thing that blocks bookings.
+              </div>
+
+              <div className="mt-auto">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs text-white/60">Audience</div>
+                  <div className="mt-1 font-semibold">{audience}</div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between text-[11px] text-white/50">
+                  <div>@attractacquisition</div>
+                  <div className="text-white/60">aa-brand-studio</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 flex gap-2">
+          <Button
+            variant="gradient"
+            className="flex-1"
+            onClick={() =>
+              toast({
+                title: "Not wired yet",
+                description: "This button is a placeholder. Export works already.",
+              })
+            }
+          >
+            Generate Reel Cover
+          </Button>
+        </div>
+      </div>
+
+      {/* 3) One-Pager Cover */}
+      <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="font-semibold">One-Pager Cover</div>
+            <div className="text-xs text-muted-foreground">4:5</div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportNodeAsPng(onePagerCoverRef.current, "aa_one_pager_cover")}
+            disabled={!onePagerBlocks?.length}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Export PNG
+          </Button>
+        </div>
+
+        <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
+          <div ref={onePagerCoverRef} className="aspect-[4/5] w-full rounded-2xl overflow-hidden">
+            <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
+                    Attract Acquisition
+                  </div>
+                  <div className="mt-2 text-3xl font-semibold leading-tight">
+                    {hook?.trim() ? hook.trim() : "One-Pager"}
+                  </div>
+                  <div className="mt-2 text-sm text-white/60">{audience}</div>
+                </div>
+
+                <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                  AA
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-xs text-white/60">What you’ll get</div>
+                <ul className="mt-2 space-y-2 text-sm text-white/85">
+                  <li>• Clear steps (no fluff)</li>
+                  <li>• A simple checklist</li>
+                  <li>• Examples you can copy</li>
+                </ul>
+              </div>
+
+              <div className="mt-auto flex items-center justify-between text-[11px] text-white/50">
+                <div>{series || "Series"}</div>
+                <div className="text-white/60">aa-brand-studio</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-4 flex gap-2">
+          <Button
+            variant="gradient"
+            className="flex-1"
+            onClick={() =>
+              toast({
+                title: "Not wired yet",
+                description: "This button is a placeholder. Export works already.",
+              })
+            }
+            disabled={!onePagerBlocks?.length}
+          >
+            Generate One-Pager Cover
+          </Button>
+        </div>
+      </div>
+    </div>
+
+    <div className="flex justify-between pt-4">
+      <Button variant="outline" onClick={() => setCurrentStep(3)}>
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back
+      </Button>
+
+      <Button
+        variant="gradient"
+        size="lg"
+        onClick={handleSaveAndExport}
+        disabled={isSaving || !onePagerBlocks?.length}
+      >
+        {isSaving ? (
+          <>
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          <>
+            <Download className="w-4 h-4 mr-2" />
+            Save & Export
+          </>
+        )}
+      </Button>
+    </div>
+  </div>
+)}
+
+
         </div>
       </div>
     </AppLayout>
