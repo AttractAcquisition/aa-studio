@@ -103,6 +103,35 @@ function normalizeOnePagerBlocks(onePagerJson: any) {
   );
 }
 
+// -------------------------------
+// Workflow helper (retry agent aliases)
+// -------------------------------
+async function runDesignWorkflowWithFallback(input_as_text: string) {
+  const agentCandidates = [
+    "AA_Design_Agent", // as per your prompt header
+    "aa_design_agent", // common snake-case
+    "design_agent", // common generic route
+  ];
+
+  let lastErr: any = null;
+
+  for (const agent of agentCandidates) {
+    try {
+      const r = await runWorkflow({ agent, input_as_text });
+      return { ok: true as const, agentUsed: agent, result: r };
+    } catch (e: any) {
+      lastErr = e;
+      const msg = String(e?.message || e || "");
+      // If it's an unknown route, try the next alias
+      if (/unknown agent route/i.test(msg)) continue;
+      // Otherwise bubble up (real failures)
+      throw e;
+    }
+  }
+
+  return { ok: false as const, agentUsed: null as any, result: null, error: lastErr };
+}
+
 app.post("/api/content-factory", async (req, res) => {
   try {
     const body = req.body as any;
@@ -322,13 +351,35 @@ app.post("/api/content-factory", async (req, res) => {
     if (body?.action === "generate_design") {
       const run_id = body.run_id as string;
 
-      // Your prompt wants "format" not "kind"
-      const format = (body.format ?? body.kind) as
-        | "one_pager"
+      // Frontend currently sends `kind` (not `format`)
+      const kind = (body.kind ?? body.format) as
         | "bold_text_card"
-        | "reel_cover";
+        | "reel_cover"
+        | "one_pager_cover"
+        | "one_pager";
 
-      const ratio = (body.ratio ?? null) as "4:5" | "1:1" | "9:16" | null;
+      // Map UI kinds to prompt formats
+      const formatMap: Record<string, "one_pager" | "bold_text_card" | "reel_cover"> = {
+        bold_text_card: "bold_text_card",
+        reel_cover: "reel_cover",
+        one_pager_cover: "one_pager", // cover is rendered as a one_pager-style spec for 4:5
+        one_pager: "one_pager",
+      };
+
+      const ratioDefaultMap: Record<string, "1:1" | "9:16" | "4:5"> = {
+        bold_text_card: "1:1",
+        reel_cover: "9:16",
+        one_pager_cover: "4:5",
+        one_pager: "4:5",
+      };
+
+      const format = formatMap[String(kind || "")];
+      const ratio = (body.ratio ?? ratioDefaultMap[String(kind || "")] ?? null) as
+        | "4:5"
+        | "1:1"
+        | "9:16"
+        | null;
+
       const mode = (body.mode ?? "clean") as "clean" | "punchy";
 
       if (!run_id || !uuidRegex.test(run_id)) {
@@ -337,10 +388,11 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Missing or invalid run_id (UUID required)" });
       }
 
-      if (!format || !["one_pager", "bold_text_card", "reel_cover"].includes(format)) {
+      if (!format) {
         return res.status(400).json({
-          error: "Missing or invalid format",
-          supported: ["one_pager", "bold_text_card", "reel_cover"],
+          error: "Missing or invalid kind/format",
+          supported_kinds: ["bold_text_card", "reel_cover", "one_pager_cover"],
+          supported_formats: ["one_pager", "bold_text_card", "reel_cover"],
         });
       }
 
@@ -365,7 +417,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const blocks = normalizeOnePagerBlocks(row.one_pager_json).slice(0, 7);
 
-      // ✅ Match the INPUT section of your prompt exactly
+      // ✅ Match your Design Agent prompt INPUT fields exactly
       const inputPayload = {
         brand: "Attract Acquisition",
         series: row.series,
@@ -379,22 +431,37 @@ app.post("/api/content-factory", async (req, res) => {
 
       const input_as_text = JSON.stringify(inputPayload, null, 2);
 
-      const r = await runWorkflow({
-        // ✅ use the agent name implied by your prompt
-        agent: "AA_Design_Agent",
-        input_as_text,
-      });
+      // ✅ Retry common agent aliases to avoid "Unknown agent route"
+      const wf = await runDesignWorkflowWithFallback(input_as_text);
 
-      const out = String(r?.output_text ?? r?.finalOutput ?? "").trim();
+      if (!wf.ok) {
+        // IMPORTANT: 200 so UI can show debug without fetch() throwing
+        return res.status(200).json({
+          run_id,
+          kind: kind ?? format,
+          format,
+          design_json: null,
+          error: "Unknown agent route (design agent not registered in aa-workflow).",
+          debug: {
+            tried_agents: ["AA_Design_Agent", "aa_design_agent", "design_agent"],
+            message: String((wf as any)?.error?.message || (wf as any)?.error || ""),
+          },
+        });
+      }
+
+      const out = String(wf.result?.output_text ?? wf.result?.finalOutput ?? "").trim();
       const parsed = tryParseJson(out);
 
       if (!parsed.ok) {
+        // IMPORTANT: 200 so UI can show debug without fetch() throwing
         return res.status(200).json({
           run_id,
+          kind: kind ?? format,
           format,
           design_json: null,
           error: "Design agent returned invalid JSON.",
           debug: {
+            agent_used: wf.agentUsed,
             cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
             raw_preview: out.slice(0, 400),
           },
@@ -403,8 +470,10 @@ app.post("/api/content-factory", async (req, res) => {
 
       return res.status(200).json({
         run_id,
+        kind: kind ?? format,
         format,
         design_json: parsed.json,
+        debug: { agent_used: wf.agentUsed },
       });
     }
 
