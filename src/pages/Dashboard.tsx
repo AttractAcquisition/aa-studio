@@ -19,6 +19,7 @@ import { useDashboardStats } from "@/hooks/useDashboardStats";
 import { useContentItems } from "@/hooks/useContentItems";
 import { AddProofModal } from "@/components/modals/AddProofModal";
 
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { stats, isLoading } = useDashboardStats();
