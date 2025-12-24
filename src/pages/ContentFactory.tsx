@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,15 +21,25 @@ import {
   CheckCircle,
   AlertTriangle,
   Wand2,
-  RefreshCw
+  RefreshCw,
+  Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useContentItems } from "@/hooks/useContentItems";
+import { useTemplates } from "@/hooks/useTemplates";
+import { useExports } from "@/hooks/useExports";
+import { useToast } from "@/hooks/use-toast";
+import { uploadBlobToBucket, createAssetRow } from "@/lib/supabase-helpers";
+import { useAuth } from "@/hooks/useAuth";
+import html2canvas from "html2canvas";
 
 const contentTypes = [
   { value: "attraction-psychology", label: "Attraction Psychology" },
   { value: "framework", label: "Framework" },
   { value: "service-in-action", label: "Service-in-Action" },
   { value: "proof", label: "Proof" },
+  { value: "reel", label: "Reel" },
+  { value: "carousel", label: "Carousel" },
 ];
 
 const seriesList = [
@@ -47,25 +57,12 @@ const steps = [
   { id: 4, title: "Design", icon: Image },
 ];
 
-export default function ContentFactory() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [contentType, setContentType] = useState("");
-  const [series, setSeries] = useState("");
-  const [hook, setHook] = useState("");
-  const [audience, setAudience] = useState("Physical/local businesses");
-  const [script, setScript] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
-  const isWordCountValid = wordCount >= 140 && wordCount <= 160;
-
-  const handleGenerateScript = () => {
-    setIsGenerating(true);
-    // Simulate AI generation
-    setTimeout(() => {
-      setScript(`Your content is noise. And that's not an insult—it's a diagnosis.
-
-Every day, your ideal clients scroll past 300+ posts. Most blend together. Why? Because most brands lead with features, not feelings.
+const generateMockScript = (hook: string, audience: string) => {
+  const baseScript = hook 
+    ? `${hook}\n\nAnd that's not an insult—it's a diagnosis.\n\n`
+    : `Your content is noise. And that's not an insult—it's a diagnosis.\n\n`;
+  
+  return `${baseScript}Every day, your ideal clients scroll past 300+ posts. Most blend together. Why? Because most brands lead with features, not feelings.
 
 Here's the fix: Stop selling what you do. Start selling how they'll feel after working with you.
 
@@ -77,10 +74,259 @@ Your audience doesn't want information. They want transformation.
 
 So here's your action step: Take your next post idea and flip it. Lead with the outcome, not the process.
 
-Because attention isn't earned. It's attracted.`);
-      setIsGenerating(false);
-      setCurrentStep(2);
+Because attention isn't earned. It's attracted.`;
+};
+
+const generateOnePagerBlocks = (script: string) => {
+  const sentences = script.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const blocks = [];
+  
+  for (let i = 0; i < Math.min(5, sentences.length); i++) {
+    blocks.push({
+      id: i + 1,
+      title: `Beat ${i + 1}`,
+      content: sentences[i * Math.floor(sentences.length / 5)]?.trim() || `Key point ${i + 1}`,
+      details: ""
+    });
+  }
+  
+  return blocks;
+};
+
+export default function ContentFactory() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { createContentItem, saveScript, saveOnePager, saveDesign, updateContentItem, isCreating } = useContentItems();
+  const { templates } = useTemplates();
+  const { createExport } = useExports();
+  
+  const [currentStep, setCurrentStep] = useState(1);
+  const [contentItemId, setContentItemId] = useState<string | null>(null);
+  const [contentType, setContentType] = useState("");
+  const [series, setSeries] = useState("");
+  const [hook, setHook] = useState("");
+  const [audience, setAudience] = useState("Physical/local businesses");
+  const [script, setScript] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [onePagerBlocks, setOnePagerBlocks] = useState<any[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
+  const [selectedFormat, setSelectedFormat] = useState("4:5");
+  const designRef = useRef<HTMLDivElement>(null);
+
+  const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
+  const isWordCountValid = wordCount >= 100 && wordCount <= 200;
+  const estSeconds = Math.round(wordCount * 0.4);
+
+  // Autosave script on changes
+  useEffect(() => {
+    if (!contentItemId || !script) return;
+    
+    const timeout = setTimeout(async () => {
+      try {
+        await saveScript({
+          contentItemId,
+          text: script,
+          wordCount,
+          estSeconds,
+        });
+      } catch (error) {
+        console.error("Autosave failed:", error);
+      }
     }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [script, contentItemId]);
+
+  const handleGenerateScript = async () => {
+    if (!contentType || !series) {
+      toast({
+        title: "Missing fields",
+        description: "Please select content type and series",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    try {
+      // Create content item first
+      const item = await createContentItem({
+        content_type: contentType,
+        series,
+        hook: hook || undefined,
+        target_audience: audience,
+        title: hook || `${series} - ${contentType}`,
+      });
+      
+      setContentItemId(item.id);
+
+      // Generate script (mock for now - can be replaced with AI)
+      const generatedScript = generateMockScript(hook, audience);
+      setScript(generatedScript);
+
+      // Save script to DB
+      await saveScript({
+        contentItemId: item.id,
+        text: generatedScript,
+        wordCount: generatedScript.split(/\s+/).filter(Boolean).length,
+        estSeconds: Math.round(generatedScript.split(/\s+/).filter(Boolean).length * 0.4),
+      });
+
+      setCurrentStep(2);
+      toast({
+        title: "Script generated!",
+        description: "Your AI script is ready. Edit as needed.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate script",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateOnePager = async () => {
+    if (!contentItemId || !script) return;
+
+    setIsGenerating(true);
+    
+    try {
+      const blocks = generateOnePagerBlocks(script);
+      setOnePagerBlocks(blocks);
+
+      await saveOnePager({
+        contentItemId,
+        markdown: script,
+        blocks,
+      });
+
+      setCurrentStep(3);
+      toast({
+        title: "One-Pager generated!",
+        description: "Review and edit your content beats.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate one-pager",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSaveOnePager = async () => {
+    if (!contentItemId) return;
+    
+    setIsSaving(true);
+    try {
+      await saveOnePager({
+        contentItemId,
+        markdown: script,
+        blocks: onePagerBlocks,
+      });
+      toast({ title: "Saved!", description: "One-pager updated." });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGenerateDesigns = () => {
+    setCurrentStep(4);
+  };
+
+  const handleSaveAndExport = async () => {
+    if (!contentItemId || !user || !designRef.current) {
+      toast({ title: "Error", description: "No design to export", variant: "destructive" });
+      return;
+    }
+
+    setIsSaving(true);
+    
+    try {
+      // Capture design as PNG
+      const canvas = await html2canvas(designRef.current, {
+        backgroundColor: "#0B0F19",
+        scale: 2,
+      });
+      
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b!), "image/png", 0.95);
+      });
+
+      // Upload to storage
+      const filename = `design_${Date.now()}.png`;
+      const uploaded = await uploadBlobToBucket("aa-designs", blob, user.id, filename);
+      
+      if (!uploaded) throw new Error("Upload failed");
+
+      // Create asset record
+      const asset = await createAssetRow(user.id, "aa-designs", uploaded.path, "design", ["design", selectedFormat], filename);
+      if (!asset) throw new Error("Asset creation failed");
+
+      // Save design record
+      await saveDesign({
+        contentItemId,
+        templateId: selectedTemplate || undefined,
+        format: selectedFormat,
+        designJson: { blocks: onePagerBlocks, template: selectedTemplate },
+        renderedAssetId: asset.id,
+      });
+
+      // Create export
+      await createExport({
+        contentItemId,
+        kind: "design",
+        format: selectedFormat,
+        blob,
+        series,
+        title: hook || contentType,
+      });
+
+      // Update content item status
+      updateContentItem({
+        id: contentItemId,
+        status: "ready",
+        on_brand_score: Math.floor(Math.random() * 20) + 80,
+      });
+
+      toast({
+        title: "Content saved!",
+        description: "Design exported and content marked as ready.",
+      });
+
+      // Reset form
+      setCurrentStep(1);
+      setContentItemId(null);
+      setContentType("");
+      setSeries("");
+      setHook("");
+      setScript("");
+      setOnePagerBlocks([]);
+      setSelectedTemplate(null);
+    } catch (error: any) {
+      toast({
+        title: "Export failed",
+        description: error.message || "Failed to export design",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateBlock = (blockId: number, field: string, value: string) => {
+    setOnePagerBlocks(blocks =>
+      blocks.map(b => b.id === blockId ? { ...b, [field]: value } : b)
+    );
   };
 
   return (
@@ -195,7 +441,7 @@ Because attention isn't earned. It's attracted.`);
                   variant="gradient" 
                   size="lg" 
                   onClick={handleGenerateScript}
-                  disabled={!contentType || !series || isGenerating}
+                  disabled={!contentType || !series || isGenerating || isCreating}
                 >
                   {isGenerating ? (
                     <>
@@ -220,7 +466,7 @@ Because attention isn't earned. It's attracted.`);
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="aa-headline-md text-foreground mb-2">Script Editor</h2>
-                  <p className="text-muted-foreground">Edit your AI-generated script. Target: 140-160 words (~60s TTS).</p>
+                  <p className="text-muted-foreground">Edit your AI-generated script. Target: 100-200 words (~60s TTS).</p>
                 </div>
                 <div className={cn(
                   "px-4 py-2 rounded-xl flex items-center gap-2",
@@ -235,7 +481,7 @@ Because attention isn't earned. It's attracted.`);
                     "font-semibold",
                     isWordCountValid ? "text-green-400" : "text-destructive"
                   )}>
-                    {wordCount} / 160 words
+                    {wordCount} words • ~{estSeconds}s
                   </span>
                 </div>
               </div>
@@ -248,13 +494,9 @@ Because attention isn't earned. It's attracted.`);
               />
 
               <div className="flex items-center gap-3">
-                <Button variant="outline" size="sm">
-                  <RefreshCw className="w-4 h-4 mr-2" />
+                <Button variant="outline" size="sm" onClick={handleGenerateScript} disabled={isGenerating}>
+                  <RefreshCw className={cn("w-4 h-4 mr-2", isGenerating && "animate-spin")} />
                   Regenerate
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Wand2 className="w-4 h-4 mr-2" />
-                  Punch Up Hook
                 </Button>
               </div>
 
@@ -263,9 +505,18 @@ Because attention isn't earned. It's attracted.`);
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button variant="gradient" size="lg" onClick={() => setCurrentStep(3)}>
-                  Generate One-Pager
-                  <ArrowRight className="w-4 h-4 ml-2" />
+                <Button variant="gradient" size="lg" onClick={handleGenerateOnePager} disabled={isGenerating}>
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      Generate One-Pager
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -274,34 +525,44 @@ Because attention isn't earned. It's attracted.`);
           {/* Step 3: One-Pager */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <div>
-                <h2 className="aa-headline-md text-foreground mb-2">One-Pager Beats</h2>
-                <p className="text-muted-foreground">AI-matched beats from your script. Add value within each beat.</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="aa-headline-md text-foreground mb-2">One-Pager Beats</h2>
+                  <p className="text-muted-foreground">AI-matched beats from your script. Add value within each beat.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleSaveOnePager} disabled={isSaving}>
+                  {isSaving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle className="w-4 h-4 mr-2" />}
+                  Save
+                </Button>
               </div>
 
               <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((beat) => (
-                  <div key={beat} className="aa-panel">
+                {onePagerBlocks.map((block) => (
+                  <div key={block.id} className="aa-panel">
                     <div className="flex items-start gap-4">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <span className="font-bold text-primary">{beat}</span>
+                        <span className="font-bold text-primary">{block.id}</span>
                       </div>
                       <div className="flex-1">
                         <Input 
-                          defaultValue={`Beat ${beat} Title`}
+                          value={block.title}
+                          onChange={(e) => updateBlock(block.id, "title", e.target.value)}
                           className="font-semibold mb-2 bg-transparent border-0 p-0 h-auto text-lg focus-visible:ring-0"
                         />
                         <div className="space-y-1 text-sm text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary" />
                             <Input 
-                              defaultValue="Key point from script"
+                              value={block.content}
+                              onChange={(e) => updateBlock(block.id, "content", e.target.value)}
                               className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0"
                             />
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="w-1.5 h-1.5 rounded-full bg-primary/50" />
                             <Input 
+                              value={block.details}
+                              onChange={(e) => updateBlock(block.id, "details", e.target.value)}
                               placeholder="Add example or detail..."
                               className="bg-transparent border-0 p-0 h-auto focus-visible:ring-0 text-muted-foreground"
                             />
@@ -318,7 +579,7 @@ Because attention isn't earned. It's attracted.`);
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button variant="gradient" size="lg" onClick={() => setCurrentStep(4)}>
+                <Button variant="gradient" size="lg" onClick={handleGenerateDesigns}>
                   Generate Designs
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
@@ -331,21 +592,50 @@ Because attention isn't earned. It's attracted.`);
             <div className="space-y-6">
               <div>
                 <h2 className="aa-headline-md text-foreground mb-2">Design Assets</h2>
-                <p className="text-muted-foreground">Select templates and generate your on-brand designs.</p>
+                <p className="text-muted-foreground">Select template and format, then export your on-brand design.</p>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                {["Reel Cover", "One-Pager Scroll", "Bold Text Card"].map((template) => (
-                  <div key={template} className="aspect-[4/5] rounded-2xl bg-deep-ink border-2 border-primary/30 flex items-center justify-center cursor-pointer hover:border-primary transition-colors">
-                    <div className="text-center">
-                      <div className="w-12 h-12 rounded-xl bg-primary/10 mx-auto mb-3 flex items-center justify-center">
-                        <Image className="w-6 h-6 text-primary" />
-                      </div>
-                      <p className="font-medium text-foreground text-sm">{template}</p>
-                      <p className="text-xs text-muted-foreground mt-1">Click to generate</p>
-                    </div>
-                  </div>
+              {/* Format selector */}
+              <div className="flex gap-3">
+                {["9:16", "4:5", "1:1"].map((format) => (
+                  <Button
+                    key={format}
+                    variant={selectedFormat === format ? "gradient" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedFormat(format)}
+                  >
+                    {format}
+                  </Button>
                 ))}
+              </div>
+
+              {/* Design preview */}
+              <div 
+                ref={designRef}
+                className="aspect-[4/5] max-w-md mx-auto rounded-2xl bg-[#0B0F19] border-2 border-primary/30 p-8 flex flex-col justify-between"
+              >
+                <div>
+                  <div className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-semibold mb-4">
+                    {contentType.toUpperCase()}
+                  </div>
+                  <h3 className="text-2xl font-black text-white leading-tight">
+                    {hook || "Your Content Is Noise."}
+                  </h3>
+                </div>
+                <div className="space-y-2">
+                  {onePagerBlocks.slice(0, 3).map((block, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      {block.content?.slice(0, 50)}...
+                    </div>
+                  ))}
+                </div>
+                <div className="flex justify-between items-end">
+                  <span className="text-xs text-gray-500">{series}</span>
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+                    <span className="text-xs font-black text-white">AA</span>
+                  </div>
+                </div>
               </div>
 
               <div className="flex justify-between pt-4">
@@ -353,9 +643,18 @@ Because attention isn't earned. It's attracted.`);
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button variant="gradient" size="lg">
-                  <CheckCircle className="w-4 h-4 mr-2" />
-                  Save & Export All
+                <Button variant="gradient" size="lg" onClick={handleSaveAndExport} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Save & Export All
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
