@@ -6,14 +6,11 @@ import { runWorkflow } from "../lib/aa-workflow";
 
 const app = express();
 
-// CORS is fine open for now; later restrict to your Lovable domain
 app.use(cors());
-
-// Always parse JSON
 app.use(express.json({ limit: "2mb" }));
 
-// Always return JSON (prevents “Unexpected token <” from HTML error pages)
-app.use((req, res, next) => {
+// ✅ Always return JSON (prevents “Unexpected token <”)
+app.use((_req, res, next) => {
   res.setHeader("Content-Type", "application/json");
   next();
 });
@@ -23,41 +20,41 @@ const supabase =
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
 
-app.get("/api/content-factory", (_req, res) => {
-  return res.status(405).json({ error: "Use POST" });
-});
-
-app.all("/api/content-factory", (_req, res, next) => {
-  res.setHeader("Content-Type", "application/json");
-  next();
-});
-
-app.get("/api/content-factory", (_req, res) => {
-  return res.status(405).json({ error: "Use POST" });
-});
-
+// Healthcheck for Railway
 app.get("/health", (_req, res) => {
   return res.status(200).json({ ok: true });
+});
+
+// Prevent GET HTML errors
+app.get("/api/content-factory", (_req, res) => {
+  return res.status(405).json({ error: "Use POST" });
 });
 
 app.post("/api/content-factory", async (req, res) => {
   try {
     const body = req.body as {
       action: "generate_script";
-      inputs: { content_type: string; series: string; hook?: string; target_audience: string };
+      inputs: {
+        content_type: string;
+        series: string;
+        hook?: string;
+        target_audience: string;
+      };
       idempotency_key?: string;
     };
 
-    if (body.action !== "generate_script") {
+    if (body?.action !== "generate_script") {
       return res.status(400).json({ error: "Unsupported action" });
     }
 
     const userId = req.header("x-user-id");
-    if (!userId) return res.status(401).json({ error: "Missing x-user-id header" });
+    if (!userId) {
+      return res.status(401).json({ error: "Missing x-user-id header" });
+    }
 
     const { content_type, series, hook, target_audience } = body.inputs;
 
-    // Create run row (recommended)
+    // 1) Create DB row (optional but recommended)
     let run_id = crypto.randomUUID();
     if (supabase) {
       const { data, error } = await supabase
@@ -78,21 +75,28 @@ app.post("/api/content-factory", async (req, res) => {
       run_id = data.id;
     }
 
-    // Run workflow
-    const result = await runWorkflow({
-      inputs: { content_type, series, hook: hook ?? "", target_audience },
+    // 2) Build single text prompt for the workflow
+    const input_as_text = [
+      `content_type: ${content_type}`,
+      `series: ${series}`,
+      `hook: ${hook ?? ""}`,
+      `target_audience: ${target_audience}`,
+    ].join("\n");
+
+    // 3) Run ONLY the script agent branch
+    const workflowResult = await runWorkflow({
+      agent: "script_agent",
+      input_as_text,
     });
 
-    // ✅ Agents SDK commonly puts final output here
-    const final = (result as any)?.finalOutput;
-
+    // 4) Extract from the object YOUR workflow returns
     const script_text =
-      typeof final === "string"
-        ? final
-        : final?.script_text ?? final?.text ?? final?.script?.text ?? "";
+      (workflowResult as any)?.script_text ??
+      (workflowResult as any)?.output_text ??
+      "";
 
-    const brief_json = (result as any)?.output?.brief ?? (result as any)?.brief ?? null;
-    const script_json = (result as any)?.output?.script ?? (result as any)?.script ?? final ?? null;
+    const brief_json = (workflowResult as any)?.brief_json ?? null;
+    const script_json = (workflowResult as any)?.script_json ?? null;
 
     if (!script_text) {
       if (supabase) {
@@ -100,38 +104,39 @@ app.post("/api/content-factory", async (req, res) => {
           .from("content_runs")
           .update({
             status: "FAILED",
-            last_error: "No script text returned (check workflow output shape)",
+            last_error: "No script text returned (check aa-workflow.ts return shape)",
           })
           .eq("id", run_id);
       }
 
       return res.status(500).json({
-        error: "Workflow returned no script text. Check aa-workflow.ts output shape.",
-        debug: { keys: Object.keys(result || {}), finalType: typeof final },
+        error: "Workflow returned no script text.",
+        debug: { workflowKeys: Object.keys(workflowResult || {}) },
       });
     }
 
+    // 5) Save results
     if (supabase) {
       await supabase
         .from("content_runs")
-        .update({ status: "SCRIPT_DONE", brief_json, script_json, script_text })
+        .update({
+          status: "SCRIPT_DONE",
+          brief_json,
+          script_json,
+          script_text,
+        })
         .eq("id", run_id);
     }
 
-    return res.json({ run_id, brief_json, script_json, script_text });
+    return res.status(200).json({ run_id, brief_json, script_json, script_text });
   } catch (e: any) {
     console.error(e);
     return res.status(500).json({ error: e?.message ?? "Unknown error" });
   }
 });
 
-// ✅ Railway requires binding to process.env.PORT
+// ✅ Railway must bind to process.env.PORT
 const PORT = Number(process.env.PORT) || 3001;
-
-app.get("/health", (_req, res) => {
-  return res.status(200).json({ ok: true });
-});
-
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`API listening on http://0.0.0.0:${PORT}`);
 });
