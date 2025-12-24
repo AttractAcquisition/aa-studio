@@ -26,10 +26,42 @@ const supabase =
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
 
 // ✅ Prevent GET HTML errors
-app.get("/api/content-factory", (_req, res) => res.status(405).json({ error: "Use POST" }));
+app.get("/api/content-factory", (_req, res) =>
+  res.status(405).json({ error: "Use POST" })
+);
 
 const uuidRegex =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// -------------------------------
+// JSON parsing helpers
+// -------------------------------
+function stripCodeFences(s: string) {
+  return String(s || "")
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```$/i, "")
+    .trim();
+}
+
+function extractJsonObject(s: string) {
+  const str = String(s || "");
+  const start = str.indexOf("{");
+  const end = str.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return "";
+  return str.slice(start, end + 1).trim();
+}
+
+function tryParseJson(raw: string) {
+  const cleaned = extractJsonObject(stripCodeFences(raw));
+  if (!cleaned) return { ok: false as const, cleaned: "", json: null };
+
+  try {
+    return { ok: true as const, cleaned, json: JSON.parse(cleaned) };
+  } catch {
+    return { ok: false as const, cleaned, json: null };
+  }
+}
 
 app.post("/api/content-factory", async (req, res) => {
   try {
@@ -92,7 +124,10 @@ app.post("/api/content-factory", async (req, res) => {
       });
 
       const script_text =
-        workflowResult?.script_text ?? workflowResult?.finalOutput ?? workflowResult?.output_text ?? "";
+        workflowResult?.script_text ??
+        workflowResult?.finalOutput ??
+        workflowResult?.output_text ??
+        "";
 
       if (!script_text) {
         if (supabase) {
@@ -117,7 +152,12 @@ app.post("/api/content-factory", async (req, res) => {
           .eq("id", run_id);
       }
 
-      return res.status(200).json({ run_id, script_text, brief_json: null, script_json: null });
+      return res.status(200).json({
+        run_id,
+        script_text,
+        brief_json: null,
+        script_json: null,
+      });
     }
 
     // -------------------------------
@@ -130,7 +170,9 @@ app.post("/api/content-factory", async (req, res) => {
       }
 
       if (!supabase) {
-        return res.status(500).json({ error: "Supabase not configured on API (missing env vars)" });
+        return res
+          .status(500)
+          .json({ error: "Supabase not configured on API (missing env vars)" });
       }
 
       // 1) Load the script from DB
@@ -162,13 +204,12 @@ app.post("/api/content-factory", async (req, res) => {
         input_as_text,
       });
 
-      const one_pager_text = r?.output_text ?? r?.finalOutput ?? "";
+      const one_pager_text = String(r?.output_text ?? r?.finalOutput ?? "").trim();
 
       // 4) Parse JSON safely
-      let one_pager_json: any = null;
-      try {
-        one_pager_json = JSON.parse(one_pager_text);
-      } catch {
+      const parsed = tryParseJson(one_pager_text);
+
+      if (!parsed.ok) {
         await supabase
           .from("content_runs")
           .update({
@@ -178,18 +219,26 @@ app.post("/api/content-factory", async (req, res) => {
           })
           .eq("id", run_id);
 
-        return res.status(500).json({
+        return res.status(200).json({
+          run_id,
+          one_pager_json: null,
+          one_pager_text,
           error: "One-pager agent returned invalid JSON.",
-          debug: { sample: String(one_pager_text).slice(0, 200) },
+          debug: {
+            cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
+            raw_preview: one_pager_text.slice(0, 400),
+          },
         });
       }
+
+      const one_pager_json = parsed.json;
 
       // 5) Save
       await supabase
         .from("content_runs")
         .update({
           status: "ONE_PAGER_DONE",
-          one_pager_text,
+          one_pager_text: JSON.stringify(one_pager_json),
           one_pager_json,
         })
         .eq("id", run_id);
