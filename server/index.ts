@@ -20,12 +20,12 @@ const supabase =
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
 
-// Healthcheck for Railway
+// ✅ Healthcheck for Railway
 app.get("/health", (_req, res) => {
   return res.status(200).json({ ok: true });
 });
 
-// Prevent GET HTML errors
+// ✅ Prevent GET HTML errors
 app.get("/api/content-factory", (_req, res) => {
   return res.status(405).json({ error: "Use POST" });
 });
@@ -52,7 +52,23 @@ app.post("/api/content-factory", async (req, res) => {
       return res.status(401).json({ error: "Missing x-user-id header" });
     }
 
-    const { content_type, series, hook, target_audience } = body.inputs;
+    const { content_type, series, hook, target_audience } = body.inputs ?? {};
+    if (!content_type || !series || !target_audience) {
+      return res.status(400).json({
+        error: "Missing required inputs",
+        required: ["content_type", "series", "target_audience"],
+      });
+    }
+
+    // ✅ If your DB column user_id is UUID, enforce it here to avoid Supabase errors
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      return res.status(400).json({
+        error: "x-user-id must be a UUID",
+        example: "00000000-0000-0000-0000-000000000001",
+      });
+    }
 
     // 1) Create DB row (optional but recommended)
     let run_id = crypto.randomUUID();
@@ -89,9 +105,10 @@ app.post("/api/content-factory", async (req, res) => {
       input_as_text,
     });
 
-    // 4) Extract from the object YOUR workflow returns
+    // 4) Extract from YOUR workflow return shape
     const script_text =
       (workflowResult as any)?.script_text ??
+      (workflowResult as any)?.finalOutput ??
       (workflowResult as any)?.output_text ??
       "";
 
