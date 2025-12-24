@@ -104,32 +104,83 @@ function normalizeOnePagerBlocks(onePagerJson: any) {
 }
 
 // -------------------------------
-// Workflow helper (retry agent aliases)
+// Image extraction (tool outputs)
 // -------------------------------
-async function runDesignWorkflowWithFallback(input_as_text: string) {
-  const agentCandidates = [
-    "AA_Design_Agent", // as per your prompt header
-    "aa_design_agent", // common snake-case
-    "design_agent", // common generic route
-  ];
+type ExtractedImage = {
+  url?: string; // http(s) URL OR data URL
+  data_url?: string; // data:image/png;base64,...
+  mime?: string;
+  width?: number;
+  height?: number;
+};
 
-  let lastErr: any = null;
+function coerceImageItem(x: any): ExtractedImage | null {
+  if (!x) return null;
 
-  for (const agent of agentCandidates) {
-    try {
-      const r = await runWorkflow({ agent, input_as_text });
-      return { ok: true as const, agentUsed: agent, result: r };
-    } catch (e: any) {
-      lastErr = e;
-      const msg = String(e?.message || e || "");
-      // If it's an unknown route, try the next alias
-      if (/unknown agent route/i.test(msg)) continue;
-      // Otherwise bubble up (real failures)
-      throw e;
+  // If string is a URL or data URL
+  if (typeof x === "string") {
+    if (x.startsWith("data:image/") || x.startsWith("http://") || x.startsWith("https://")) {
+      return { url: x };
+    }
+    return null;
+  }
+
+  // Common shapes
+  if (typeof x === "object") {
+    const dataUrl = x.data_url || x.dataUrl || x.b64_json || x.base64;
+    if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
+      return { data_url: dataUrl, url: dataUrl, mime: "image/png" };
+    }
+
+    const url = x.url || x.image_url || x.href;
+    if (typeof url === "string") {
+      return {
+        url,
+        mime: x.mime || x.content_type || x.type,
+        width: x.width,
+        height: x.height,
+      };
     }
   }
 
-  return { ok: false as const, agentUsed: null as any, result: null, error: lastErr };
+  return null;
+}
+
+function extractImagesFromWorkflowResult(r: any): ExtractedImage[] {
+  const out: ExtractedImage[] = [];
+
+  // 1) direct arrays
+  const directArrays = [
+    r?.images,
+    r?.output?.images,
+    r?.result?.images,
+    r?.artifacts,
+    r?.output?.artifacts,
+  ].filter(Boolean);
+
+  for (const arr of directArrays) {
+    if (Array.isArray(arr)) {
+      for (const item of arr) {
+        const coerced = coerceImageItem(item);
+        if (coerced) out.push(coerced);
+      }
+    }
+  }
+
+  // 2) sometimes nested in "output" content items (Responses-style)
+  const contentItems = r?.output ?? r?.response?.output;
+  if (Array.isArray(contentItems)) {
+    for (const item of contentItems) {
+      // some SDKs use { type:"output_image", image:{url...} } or similar
+      const coerced =
+        coerceImageItem(item?.image) ||
+        coerceImageItem(item?.content?.image) ||
+        coerceImageItem(item);
+      if (coerced) out.push(coerced);
+    }
+  }
+
+  return out;
 }
 
 app.post("/api/content-factory", async (req, res) => {
@@ -346,39 +397,29 @@ app.post("/api/content-factory", async (req, res) => {
     }
 
     // -------------------------------
-    // ACTION 3: GENERATE DESIGN (AA_Design_Agent)
+    // ACTION 3: GENERATE DESIGN (Agent generates images)
     // -------------------------------
     if (body?.action === "generate_design") {
       const run_id = body.run_id as string;
 
-      // Frontend currently sends `kind` (not `format`)
-      const kind = (body.kind ?? body.format) as
+      // support UI "kind" values + prompt "format" values
+      const rawKind = (body.kind ?? body.format) as
+        | "one_pager"
         | "bold_text_card"
         | "reel_cover"
-        | "one_pager_cover"
-        | "one_pager";
+        | "one_pager_cover";
 
-      // Map UI kinds to prompt formats
-      const formatMap: Record<string, "one_pager" | "bold_text_card" | "reel_cover"> = {
-        bold_text_card: "bold_text_card",
-        reel_cover: "reel_cover",
-        one_pager_cover: "one_pager", // cover is rendered as a one_pager-style spec for 4:5
-        one_pager: "one_pager",
-      };
+      // Map UI alias -> prompt format
+      const format = (rawKind === "one_pager_cover" ? "one_pager" : rawKind) as
+        | "one_pager"
+        | "bold_text_card"
+        | "reel_cover";
 
-      const ratioDefaultMap: Record<string, "1:1" | "9:16" | "4:5"> = {
-        bold_text_card: "1:1",
-        reel_cover: "9:16",
-        one_pager_cover: "4:5",
-        one_pager: "4:5",
-      };
-
-      const format = formatMap[String(kind || "")];
-      const ratio = (body.ratio ?? ratioDefaultMap[String(kind || "")] ?? null) as
-        | "4:5"
-        | "1:1"
-        | "9:16"
-        | null;
+      const ratio =
+        (body.ratio ?? (rawKind === "bold_text_card" ? "1:1" : rawKind === "reel_cover" ? "9:16" : "4:5")) as
+          | "4:5"
+          | "1:1"
+          | "9:16";
 
       const mode = (body.mode ?? "clean") as "clean" | "punchy";
 
@@ -388,11 +429,10 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Missing or invalid run_id (UUID required)" });
       }
 
-      if (!format) {
+      if (!format || !["one_pager", "bold_text_card", "reel_cover"].includes(format)) {
         return res.status(400).json({
-          error: "Missing or invalid kind/format",
-          supported_kinds: ["bold_text_card", "reel_cover", "one_pager_cover"],
-          supported_formats: ["one_pager", "bold_text_card", "reel_cover"],
+          error: "Missing or invalid format",
+          supported: ["one_pager", "bold_text_card", "reel_cover"],
         });
       }
 
@@ -417,7 +457,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const blocks = normalizeOnePagerBlocks(row.one_pager_json).slice(0, 7);
 
-      // ✅ Match your Design Agent prompt INPUT fields exactly
+      // ✅ matches your prompt input section
       const inputPayload = {
         brand: "Attract Acquisition",
         series: row.series,
@@ -425,55 +465,54 @@ app.post("/api/content-factory", async (req, res) => {
         audience: row.target_audience,
         blocks,
         mode,
-        ratio: ratio ?? undefined,
+        ratio,
         format,
       };
 
       const input_as_text = JSON.stringify(inputPayload, null, 2);
 
-      // ✅ Retry common agent aliases to avoid "Unknown agent route"
-      const wf = await runDesignWorkflowWithFallback(input_as_text);
+      // IMPORTANT:
+      // Your runWorkflow must route "AA_Design_Agent" to your agent playground config.
+      const r = await runWorkflow({
+        agent: "AA_Design_Agent",
+        input_as_text,
+      });
 
-      if (!wf.ok) {
-        // IMPORTANT: 200 so UI can show debug without fetch() throwing
+      // 1) Try to extract images from tool outputs
+      const images = extractImagesFromWorkflowResult(r);
+
+      // 2) Also keep any text output (for debugging)
+      const outText = String(r?.output_text ?? r?.finalOutput ?? "").trim();
+
+      // 3) Optionally parse JSON if present (but don't fail if missing when images exist)
+      const parsed = outText ? tryParseJson(outText) : { ok: false as const, cleaned: "", json: null };
+
+      if (!images.length && !parsed.ok) {
+        // Return 200 so UI can show debug
         return res.status(200).json({
           run_id,
-          kind: kind ?? format,
           format,
+          ratio,
+          mode,
+          images: [],
           design_json: null,
-          error: "Unknown agent route (design agent not registered in aa-workflow).",
+          error: "Design agent returned no images and no valid JSON.",
           debug: {
-            tried_agents: ["AA_Design_Agent", "aa_design_agent", "design_agent"],
-            message: String((wf as any)?.error?.message || (wf as any)?.error || ""),
-          },
-        });
-      }
-
-      const out = String(wf.result?.output_text ?? wf.result?.finalOutput ?? "").trim();
-      const parsed = tryParseJson(out);
-
-      if (!parsed.ok) {
-        // IMPORTANT: 200 so UI can show debug without fetch() throwing
-        return res.status(200).json({
-          run_id,
-          kind: kind ?? format,
-          format,
-          design_json: null,
-          error: "Design agent returned invalid JSON.",
-          debug: {
-            agent_used: wf.agentUsed,
-            cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
-            raw_preview: out.slice(0, 400),
+            raw_preview: outText.slice(0, 600),
+            cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 600) : null,
+            workflow_keys: r && typeof r === "object" ? Object.keys(r).slice(0, 40) : null,
           },
         });
       }
 
       return res.status(200).json({
         run_id,
-        kind: kind ?? format,
         format,
-        design_json: parsed.json,
-        debug: { agent_used: wf.agentUsed },
+        ratio,
+        mode,
+        images, // ✅ this is what the frontend will render
+        design_json: parsed.ok ? parsed.json : null, // optional
+        raw_text: outText || null,
       });
     }
 
