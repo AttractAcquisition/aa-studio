@@ -12,6 +12,7 @@ export interface CreateEventParams {
   value?: number;
   notes?: string;
   occurred_at?: string;
+  related_event_id?: string;
 }
 
 export function useEvents() {
@@ -50,6 +51,7 @@ export function useEvents() {
           value: params.value,
           notes: params.notes,
           occurred_at: params.occurred_at || new Date().toISOString(),
+          related_event_id: params.related_event_id,
         })
         .select()
         .single();
@@ -84,6 +86,21 @@ export function useEvents() {
   const auditRequests = events?.filter((e) => e.type === "audit_request") || [];
   const conversionsData = events?.filter((e) => e.type === "conversion") || [];
 
+  // Conversion rates
+  const enquiryCount = enquiries.length;
+  const auditRequestRate = enquiryCount > 0 ? Math.round((auditRequests.length / enquiryCount) * 100) : 0;
+  const bookedCallRate = enquiryCount > 0 ? Math.round((bookedCalls.length / enquiryCount) * 100) : 0;
+  const conversionRate = enquiryCount > 0 ? Math.round((conversionsData.length / enquiryCount) * 100) : 0;
+
+  // Last 7 days counts
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const enquiriesLast7Days = enquiries.filter((e) => new Date(e.occurred_at) >= sevenDaysAgo).length;
+  const auditRequestsLast7Days = auditRequests.filter((e) => new Date(e.occurred_at) >= sevenDaysAgo).length;
+  const bookedCallsLast7Days = bookedCalls.filter((e) => new Date(e.occurred_at) >= sevenDaysAgo).length;
+  const conversionsLast7Days = conversionsData.filter((e) => new Date(e.occurred_at) >= sevenDaysAgo).length;
+
   return {
     events: events || [],
     enquiries,
@@ -94,5 +111,17 @@ export function useEvents() {
     createEvent: createEvent.mutateAsync,
     deleteEvent: deleteEvent.mutate,
     isCreating: createEvent.isPending,
+    // Conversion stats
+    conversionRates: {
+      auditRequestRate,
+      bookedCallRate,
+      conversionRate,
+    },
+    last7Days: {
+      enquiries: enquiriesLast7Days,
+      auditRequests: auditRequestsLast7Days,
+      bookedCalls: bookedCallsLast7Days,
+      conversions: conversionsLast7Days,
+    },
   };
 }

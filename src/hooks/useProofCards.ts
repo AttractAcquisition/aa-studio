@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
-import { getAssetPublicUrl } from "@/lib/supabase-helpers";
+import { getAssetPublicUrl, uploadBlobToBucket, createAssetRow } from "@/lib/supabase-helpers";
 
 export interface CreateProofCardParams {
   proof_id?: string;
@@ -47,7 +47,8 @@ export function useProofCards() {
     mutationFn: async (params: CreateProofCardParams) => {
       if (!user) throw new Error("Not authenticated");
 
-      const { data, error } = await supabase
+      // Create initial proof card row
+      const { data: proofCard, error: insertError } = await supabase
         .from("proof_cards")
         .insert({
           user_id: user.id,
@@ -62,8 +63,87 @@ export function useProofCards() {
         .select()
         .single();
 
-      if (error) throw error;
-      return data;
+      if (insertError) throw insertError;
+
+      // Try to generate AI image
+      try {
+        const response = await fetch("/api/content-factory", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "generate_proof_card",
+            claim: params.claim,
+            metric: params.metric,
+            timeframe: params.timeframe,
+            proof_type: params.proof_type || "result",
+            client_name: params.client_name,
+            accent_color: "#6A00F4",
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          
+          let imageBlob: Blob | null = null;
+          let mime = "image/png";
+
+          // Handle image_b64 first (preferred)
+          if (result.image_b64) {
+            const base64Data = result.image_b64.replace(/^data:image\/\w+;base64,/, "");
+            mime = result.mime || "image/png";
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            imageBlob = new Blob([byteArray], { type: mime });
+          }
+          // Fallback to images[0].url
+          else if (result.images?.[0]?.url) {
+            const imageResponse = await fetch(result.images[0].url);
+            imageBlob = await imageResponse.blob();
+            mime = imageBlob.type || "image/png";
+          }
+
+          if (imageBlob) {
+            const ext = mime.split("/")[1] || "png";
+            const filename = `proof_card_${proofCard.id}_${Date.now()}.${ext}`;
+            
+            const uploadResult = await uploadBlobToBucket(
+              "aa-designs",
+              imageBlob,
+              user.id,
+              filename
+            );
+
+            if (uploadResult) {
+              const asset = await createAssetRow(
+                user.id,
+                "aa-designs",
+                uploadResult.path,
+                "proof_card",
+                ["proof", "generated"],
+                params.claim
+              );
+
+              if (asset) {
+                // Update proof card with asset_id
+                await supabase
+                  .from("proof_cards")
+                  .update({ asset_id: asset.id })
+                  .eq("id", proofCard.id);
+                  
+                return { ...proofCard, asset_id: asset.id };
+              }
+            }
+          }
+        }
+      } catch (aiError) {
+        console.error("AI generation failed, proof card created without image:", aiError);
+      }
+
+      return proofCard;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["proof_cards", user?.id] });
