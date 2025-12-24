@@ -74,6 +74,26 @@ type GenerateOnePagerResponse = {
   run_id: string;
   one_pager_json?: any;
   one_pager_text?: string;
+  blocks?: any[];
+  error?: string;
+  debug?: any;
+};
+
+type DesignAssetKind = "bold_text_card" | "reel_cover" | "one_pager_cover";
+
+type DesignTextBlock = {
+  kicker?: string;
+  headline?: string;
+  subheadline?: string;
+  bullets?: string[];
+  footer_left?: string;
+  footer_right?: string;
+};
+
+type GenerateDesignResponse = {
+  run_id: string;
+  kind: DesignAssetKind;
+  design_json?: any;
   error?: string;
   debug?: any;
 };
@@ -89,7 +109,7 @@ function escapeHtml(s: string) {
 export default function ContentFactory() {
   const { user, session } = useAuth() as any;
   const { toast } = useToast();
-  const { templates } = useTemplates(); // (kept even if not used right now)
+  const { templates } = useTemplates(); // kept
   const { createExport } = useExports();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -107,6 +127,15 @@ export default function ContentFactory() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [onePagerBlocks, setOnePagerBlocks] = useState<any[]>([]);
+
+  // ✅ Design agent output (copy for each asset)
+  const [designCopy, setDesignCopy] = useState<{
+    bold_text_card?: DesignTextBlock;
+    reel_cover?: DesignTextBlock;
+    one_pager_cover?: DesignTextBlock;
+  }>({});
+  const [isGeneratingDesignKind, setIsGeneratingDesignKind] =
+    useState<DesignAssetKind | null>(null);
 
   // Step 3: document ref (export + screenshot)
   const onePagerDocRef = useRef<HTMLDivElement>(null);
@@ -243,12 +272,8 @@ export default function ContentFactory() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || "Failed to generate script");
-      }
-
-      const data = (await res.json()) as GenerateScriptResponse;
+      const data = (await res.json().catch(() => ({}))) as any;
+      if (!res.ok) throw new Error(data?.error || "Failed to generate script");
 
       setContentItemId(data.run_id);
 
@@ -327,33 +352,38 @@ export default function ContentFactory() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err?.error || "Failed to generate one-pager");
+      const data = (await res.json().catch(() => ({}))) as GenerateOnePagerResponse;
+      if (!res.ok) throw new Error((data as any)?.error || "Failed to generate one-pager");
+
+      // ✅ Prefer canonical blocks from server if present
+      let blocks: any[] = Array.isArray(data.blocks) ? data.blocks : [];
+      if (!blocks.length) {
+        const opj = data.one_pager_json;
+
+        if (Array.isArray(opj)) blocks = opj;
+        else if (opj?.blocks && Array.isArray(opj.blocks)) blocks = opj.blocks;
+        else if (opj?.sections && Array.isArray(opj.sections)) blocks = opj.sections;
+
+        blocks = blocks.map((b, idx) => ({
+          id: b.id ?? idx + 1,
+          title: b.title ?? `Beat ${idx + 1}`,
+          content: b.content ?? b.body ?? "",
+          details: b.details ?? b.notes ?? "",
+        }));
       }
-
-      const data = (await res.json()) as GenerateOnePagerResponse;
-      const opj = data.one_pager_json;
-
-      let blocks: any[] = [];
-      if (Array.isArray(opj)) blocks = opj;
-      else if (opj?.blocks && Array.isArray(opj.blocks)) blocks = opj.blocks;
-      else if (opj?.sections && Array.isArray(opj.sections)) blocks = opj.sections;
-
-      blocks = blocks.map((b, idx) => ({
-        id: b.id ?? idx + 1,
-        title: b.title ?? `Beat ${idx + 1}`,
-        content: b.content ?? b.body ?? "",
-        details: b.details ?? b.notes ?? "",
-      }));
 
       if (!blocks.length) {
         throw new Error(
-          "One-pager returned no blocks. Ensure one_pager_agent returns JSON with { blocks: [...] }."
+          data.error ||
+            "One-pager returned no blocks. Ensure one_pager_agent returns JSON with blocks."
         );
       }
 
       setOnePagerBlocks(blocks);
+
+      // ✅ Clear design copy because the source content changed
+      setDesignCopy({});
+
       setCurrentStep(3);
 
       toast({
@@ -535,6 +565,117 @@ export default function ContentFactory() {
   };
 
   // -----------------------------
+  // Step 4: Generate Design Copy (wire buttons to backend)
+  // -----------------------------
+  const handleGenerateDesignAsset = async (kind: DesignAssetKind) => {
+    if (!user) {
+      toast({
+        title: "Not signed in",
+        description: "Please sign in to generate designs.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!contentItemId) {
+      toast({
+        title: "Missing run_id",
+        description: "Generate a script + one-pager first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!onePagerBlocks?.length) {
+      toast({
+        title: "Missing one-pager",
+        description: "Generate the one-pager first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingDesignKind(kind);
+
+    try {
+      const payload = {
+        action: "generate_design",
+        run_id: contentItemId,
+        kind,
+        idempotency_key:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`,
+      };
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      const accessToken = session?.access_token;
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+      if (user?.id) headers["x-user-id"] = user.id;
+
+      const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      const data = (await res.json().catch(() => ({}))) as GenerateDesignResponse;
+
+      if (!res.ok) {
+        throw new Error((data as any)?.error || "Failed to generate design");
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      const dj = data.design_json;
+
+      // Accept either:
+      // 1) { bold_text_card: {...} } OR
+      // 2) { kind:"bold_text_card", payload:{...} } OR
+      // 3) { ... } with direct fields
+      let block: DesignTextBlock | undefined;
+
+      if (dj?.[kind] && typeof dj[kind] === "object") block = dj[kind];
+      else if (dj?.payload && typeof dj.payload === "object") block = dj.payload;
+      else if (typeof dj === "object") block = dj;
+
+      if (!block || typeof block !== "object") {
+        throw new Error("Design agent returned no usable JSON payload.");
+      }
+
+      setDesignCopy((prev) => ({
+        ...prev,
+        [kind]: {
+          kicker: block.kicker,
+          headline: block.headline,
+          subheadline: block.subheadline,
+          bullets: Array.isArray(block.bullets) ? block.bullets : undefined,
+          footer_left: block.footer_left,
+          footer_right: block.footer_right,
+        },
+      }));
+
+      toast({
+        title: "Generated",
+        description: "Design copy updated.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Design generation failed",
+        description: e?.message || "Could not generate design copy.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingDesignKind(null);
+    }
+  };
+
+  // -----------------------------
   // Step transitions
   // -----------------------------
   const handleGenerateDesigns = () => setCurrentStep(4);
@@ -582,7 +723,7 @@ export default function ContentFactory() {
       const runId = contentItemId || "temp";
 
       const items: Array<{
-        key: "bold_text_card" | "reel_cover" | "one_pager_cover";
+        key: DesignAssetKind;
         format: "1:1" | "9:16" | "4:5";
         node: HTMLElement;
         filenameBase: string;
@@ -611,7 +752,6 @@ export default function ContentFactory() {
 
       for (const item of items) {
         const blob = await renderNodeToBlob(item.node, "#0B0F19");
-
         const filename = `${item.filenameBase}_${Date.now()}_${item.format}.png`;
 
         const uploaded = await uploadBlobToBucket(
@@ -649,7 +789,7 @@ export default function ContentFactory() {
         description: `Saved ${successCount}/3 designs to your vault.`,
       });
 
-      // Optional reset (same behavior you had before)
+      // Reset (same behavior)
       setCurrentStep(1);
       setContentItemId(null);
       setContentType("");
@@ -657,6 +797,7 @@ export default function ContentFactory() {
       setHook("");
       setScript("");
       setOnePagerBlocks([]);
+      setDesignCopy({});
     } catch (error: any) {
       toast({
         title: "Export failed",
@@ -667,6 +808,32 @@ export default function ContentFactory() {
       setIsSaving(false);
     }
   };
+
+  // -----------------------------
+  // Derived values (use design copy with fallbacks)
+  // -----------------------------
+  const bold = designCopy.bold_text_card;
+  const reel = designCopy.reel_cover;
+  const cover = designCopy.one_pager_cover;
+
+  const seriesLabel = series ? series.split("-").join(" ") : "Attraction Audit";
+
+  const boldHeadline = bold?.headline || (hook?.trim() ? hook.trim() : "YOUR CONTENT IS NOISE.");
+  const boldKicker = bold?.kicker || "Attract Acquisition";
+  const boldSub = bold?.subheadline || (series ? `Series: ${series}` : "Make your message unignorable.");
+  const boldFooterLeft = bold?.footer_left || audience;
+  const boldFooterRight = bold?.footer_right || "aa-brand-studio";
+
+  const reelHeadline = reel?.headline || (hook?.trim() ? hook.trim() : "This is why your content doesn’t convert.");
+  const reelKicker = reel?.kicker || seriesLabel.toUpperCase();
+  const reelSub = reel?.subheadline || "Watch before you post — fix the one thing that blocks bookings.";
+
+  const coverHeadline = cover?.headline || (hook?.trim() ? hook.trim() : "One-Pager");
+  const coverKicker = cover?.kicker || "Attract Acquisition";
+  const coverBullets =
+    (Array.isArray(cover?.bullets) && cover?.bullets.length
+      ? cover?.bullets
+      : ["Clear steps (no fluff)", "A simple checklist", "Examples you can copy"]) as string[];
 
   return (
     <AppLayout>
@@ -997,12 +1164,9 @@ export default function ContentFactory() {
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        exportNodeAsPng(
-                          boldTextRef.current,
-                          "aa_bold_text_card"
-                        )
+                        exportNodeAsPng(boldTextRef.current, "aa_bold_text_card")
                       }
-                      disabled={!hook?.trim()}
+                      disabled={!boldTextRef.current}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export PNG
@@ -1017,7 +1181,7 @@ export default function ContentFactory() {
                       <div className="h-full w-full bg-[#0B0F19] text-white p-7 flex flex-col justify-between">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
-                            Attract Acquisition
+                            {boldKicker}
                           </div>
                           <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
                             AA
@@ -1026,20 +1190,16 @@ export default function ContentFactory() {
 
                         <div className="mt-6">
                           <div className="text-4xl font-semibold leading-tight">
-                            {hook?.trim()
-                              ? hook.trim()
-                              : "YOUR CONTENT IS NOISE."}
+                            {boldHeadline}
                           </div>
                           <div className="mt-4 text-sm text-white/60 leading-relaxed">
-                            {series
-                              ? `Series: ${series}`
-                              : "Make your message unignorable."}
+                            {boldSub}
                           </div>
                         </div>
 
                         <div className="flex items-center justify-between text-[11px] text-white/50">
-                          <div>{audience}</div>
-                          <div className="text-white/60">aa-brand-studio</div>
+                          <div>{boldFooterLeft}</div>
+                          <div className="text-white/60">{boldFooterRight}</div>
                         </div>
                       </div>
                     </div>
@@ -1049,15 +1209,17 @@ export default function ContentFactory() {
                     <Button
                       variant="gradient"
                       className="flex-1"
-                      onClick={() =>
-                        toast({
-                          title: "Not wired yet",
-                          description:
-                            "This button is a placeholder. Export works already.",
-                        })
-                      }
+                      onClick={() => handleGenerateDesignAsset("bold_text_card")}
+                      disabled={isGeneratingDesignKind === "bold_text_card"}
                     >
-                      Generate Bold Text Card
+                      {isGeneratingDesignKind === "bold_text_card" ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Bold Text Card"
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -1073,9 +1235,8 @@ export default function ContentFactory() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")
-                      }
+                      onClick={() => exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")}
+                      disabled={!reelCoverRef.current}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export PNG
@@ -1090,7 +1251,7 @@ export default function ContentFactory() {
                       <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
                         <div className="flex items-start justify-between">
                           <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
-                            {series ? series.split("-").join(" ") : "Attraction Audit"}
+                            {reelKicker}
                           </div>
                           <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
                             AA
@@ -1098,14 +1259,11 @@ export default function ContentFactory() {
                         </div>
 
                         <div className="mt-6 text-4xl font-semibold leading-tight">
-                          {hook?.trim()
-                            ? hook.trim()
-                            : "This is why your content doesn’t convert."}
+                          {reelHeadline}
                         </div>
 
                         <div className="mt-4 text-sm text-white/65 leading-relaxed">
-                          Watch before you post — fix the one thing that blocks
-                          bookings.
+                          {reelSub}
                         </div>
 
                         <div className="mt-auto">
@@ -1127,15 +1285,17 @@ export default function ContentFactory() {
                     <Button
                       variant="gradient"
                       className="flex-1"
-                      onClick={() =>
-                        toast({
-                          title: "Not wired yet",
-                          description:
-                            "This button is a placeholder. Export works already.",
-                        })
-                      }
+                      onClick={() => handleGenerateDesignAsset("reel_cover")}
+                      disabled={isGeneratingDesignKind === "reel_cover"}
                     >
-                      Generate Reel Cover
+                      {isGeneratingDesignKind === "reel_cover" ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate Reel Cover"
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -1152,12 +1312,9 @@ export default function ContentFactory() {
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        exportNodeAsPng(
-                          onePagerCoverRef.current,
-                          "aa_one_pager_cover"
-                        )
+                        exportNodeAsPng(onePagerCoverRef.current, "aa_one_pager_cover")
                       }
-                      disabled={!onePagerBlocks?.length}
+                      disabled={!onePagerCoverRef.current}
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export PNG
@@ -1173,10 +1330,10 @@ export default function ContentFactory() {
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
-                              Attract Acquisition
+                              {coverKicker}
                             </div>
                             <div className="mt-2 text-3xl font-semibold leading-tight">
-                              {hook?.trim() ? hook.trim() : "One-Pager"}
+                              {coverHeadline}
                             </div>
                             <div className="mt-2 text-sm text-white/60">
                               {audience}
@@ -1191,9 +1348,9 @@ export default function ContentFactory() {
                         <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
                           <div className="text-xs text-white/60">What you’ll get</div>
                           <ul className="mt-2 space-y-2 text-sm text-white/85">
-                            <li>• Clear steps (no fluff)</li>
-                            <li>• A simple checklist</li>
-                            <li>• Examples you can copy</li>
+                            {coverBullets.slice(0, 4).map((b, i) => (
+                              <li key={i}>• {b}</li>
+                            ))}
                           </ul>
                         </div>
 
@@ -1209,16 +1366,17 @@ export default function ContentFactory() {
                     <Button
                       variant="gradient"
                       className="flex-1"
-                      onClick={() =>
-                        toast({
-                          title: "Not wired yet",
-                          description:
-                            "This button is a placeholder. Export works already.",
-                        })
-                      }
-                      disabled={!onePagerBlocks?.length}
+                      onClick={() => handleGenerateDesignAsset("one_pager_cover")}
+                      disabled={isGeneratingDesignKind === "one_pager_cover"}
                     >
-                      Generate One-Pager Cover
+                      {isGeneratingDesignKind === "one_pager_cover" ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        "Generate One-Pager Cover"
+                      )}
                     </Button>
                   </div>
                 </div>
