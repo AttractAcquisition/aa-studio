@@ -89,6 +89,14 @@ type GenerateScriptResponse = {
   script_json?: any;
 };
 
+type GenerateOnePagerResponse = {
+  run_id: string;
+  one_pager_json?: any; // JSON your agent returns
+  one_pager_text?: string; // raw text (often JSON string)
+  error?: string;
+  debug?: any;
+};
+
 export default function ContentFactory() {
   const { user, session } = useAuth() as any; // ✅ session optional (depends on your hook)
   const { toast } = useToast();
@@ -126,9 +134,9 @@ export default function ContentFactory() {
 
   // ✅ Point this at YOUR server API route.
   // That API route imports lib/aa-workflow.ts and runs the Agent workflow.
-const CONTENT_FACTORY_WEBHOOK =
-  import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
-  
+  const CONTENT_FACTORY_WEBHOOK =
+    import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
+
   const handleGenerateScript = async () => {
     if (!user) {
       toast({
@@ -194,10 +202,7 @@ const CONTENT_FACTORY_WEBHOOK =
 
       // ✅ Support multiple response shapes
       const scriptText =
-        data.script_text ??
-        data.script?.text ??
-        data.output?.script?.text ??
-        "";
+        data.script_text ?? data.script?.text ?? data.output?.script?.text ?? "";
 
       if (!scriptText) {
         throw new Error(
@@ -223,22 +228,99 @@ const CONTENT_FACTORY_WEBHOOK =
     }
   };
 
-  // TEMP (local mock) until one-pager webhook is wired
+  // ✅ NOW WIRED: One-pager via API (replaces local mock)
   const handleGenerateOnePager = async () => {
-    if (!script) return;
+    if (!user) {
+      toast({
+        title: "Not signed in",
+        description: "Please sign in to generate content.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!contentItemId) {
+      toast({
+        title: "Missing run_id",
+        description: "Generate a script first (run_id is required).",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsGenerating(true);
-    try {
-      const blocks = generateOnePagerBlocks(script);
-      setOnePagerBlocks(blocks);
 
+    try {
+      const payload = {
+        action: "generate_one_pager",
+        run_id: contentItemId,
+        idempotency_key:
+          typeof crypto !== "undefined" && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random()}`,
+      };
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      const accessToken = session?.access_token;
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+      if (user?.id) headers["x-user-id"] = user.id;
+
+      const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "Failed to generate one-pager");
+      }
+
+      const data = (await res.json()) as GenerateOnePagerResponse;
+
+      const opj = data.one_pager_json;
+
+      // ✅ Normalize to your existing UI blocks shape: [{id,title,content,details}]
+      let blocks: any[] = [];
+
+      if (Array.isArray(opj)) {
+        blocks = opj;
+      } else if (opj?.blocks && Array.isArray(opj.blocks)) {
+        blocks = opj.blocks;
+      } else if (opj?.sections && Array.isArray(opj.sections)) {
+        blocks = opj.sections;
+      }
+
+      blocks = blocks.map((b, idx) => ({
+        id: b.id ?? idx + 1,
+        title: b.title ?? `Beat ${idx + 1}`,
+        content: b.content ?? b.body ?? "",
+        details: b.details ?? b.notes ?? "",
+      }));
+
+      if (!blocks.length) {
+        throw new Error(
+          "One-pager returned no blocks. Ensure the one_pager_agent returns JSON with { blocks: [...] }."
+        );
+      }
+
+      setOnePagerBlocks(blocks);
       setCurrentStep(3);
+
       toast({
         title: "One-Pager generated!",
-        description:
-          "This is using local mock logic for now. We'll wire the one_pager_agent next.",
+        description: "Your one-pager is ready. Edit blocks if needed.",
       });
     } catch (error: any) {
+      // Optional fallback to local mock:
+      // const fallback = generateOnePagerBlocks(script);
+      // setOnePagerBlocks(fallback);
+      // setCurrentStep(3);
+
       toast({
         title: "Error",
         description: error.message || "Failed to generate one-pager",
@@ -578,11 +660,329 @@ const CONTENT_FACTORY_WEBHOOK =
               </div>
             </div>
           )}
+          {/* Step 3: One-Pager */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    One-Pager Builder
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Edit the beats. These will be used to generate the final design.
+                  </p>
+                </div>
 
-          {/* Step 3 + Step 4 remain unchanged... */}
-          {/* (keeping your existing JSX below) */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveOnePager}
+                  disabled={isGenerating || !onePagerBlocks?.length}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Save One-Pager
+                </Button>
+              </div>
+
+              {!onePagerBlocks?.length ? (
+                <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
+                  No one-pager blocks yet. Go back and click “Generate One-Pager”.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {onePagerBlocks.map((block) => (
+                    <div
+                      key={block.id}
+                      className="rounded-2xl border border-border/40 bg-card/50 p-5"
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                        <div className="md:col-span-1 space-y-2">
+                          <Label className="text-muted-foreground">Title</Label>
+                          <Input
+                            value={block.title}
+                            onChange={(e) =>
+                              updateBlock(block.id, "title", e.target.value)
+                            }
+                            className="h-11"
+                          />
+                        </div>
+
+                        <div className="md:col-span-2 space-y-2">
+                          <Label className="text-muted-foreground">
+                            Main content
+                          </Label>
+                          <Textarea
+                            value={block.content}
+                            onChange={(e) =>
+                              updateBlock(block.id, "content", e.target.value)
+                            }
+                            className="min-h-[110px] text-base leading-relaxed"
+                          />
+
+                          <Label className="text-muted-foreground">
+                            Details (optional)
+                          </Label>
+                          <Textarea
+                            value={block.details || ""}
+                            onChange={(e) =>
+                              updateBlock(block.id, "details", e.target.value)
+                            }
+                            className="min-h-[80px]"
+                            placeholder="Examples, checklist items, micro-steps…"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleGenerateDesigns}
+                  disabled={isGenerating || !onePagerBlocks?.length}
+                >
+                  Generate Designs
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 4: Design */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    Design Preview
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Pick a template + format, preview the one-pager, then export.
+                  </p>
+                </div>
+
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleSaveAndExport}
+                  disabled={isSaving || !onePagerBlocks?.length}
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Save & Export
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Template</Label>
+                  <Select
+                    value={selectedTemplate ?? ""}
+                    onValueChange={(v) => setSelectedTemplate(v)}
+                  >
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Select a template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(templates ?? []).map((t: any) => (
+                        <SelectItem key={t.id ?? t.slug ?? t.name} value={String(t.id ?? t.slug ?? t.name)}>
+                          {t.name ?? t.title ?? t.slug ?? "Template"}
+                        </SelectItem>
+                      ))}
+                      {/* safe fallback if templates list is empty */}
+                      {(templates ?? []).length === 0 && (
+                        <SelectItem value="default">Default</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Format</Label>
+                  <Select value={selectedFormat} onValueChange={setSelectedFormat}>
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Select format..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="4:5">4:5 (IG Feed)</SelectItem>
+                      <SelectItem value="1:1">1:1 (Square)</SelectItem>
+                      <SelectItem value="9:16">9:16 (Reels Cover)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Quick actions</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setCurrentStep(3)}
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      Edit One-Pager
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => {
+                        // simple “shuffle” rerender trigger if needed later
+                        setSelectedTemplate((prev) => prev ?? "default");
+                      }}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    Preview (export uses this exact frame)
+                  </div>
+
+                  <div
+                    className={cn(
+                      "w-full flex items-center justify-center rounded-3xl border border-border/40 bg-[#0B0F19] p-6",
+                      selectedFormat === "4:5" && "aspect-[4/5]",
+                      selectedFormat === "1:1" && "aspect-square",
+                      selectedFormat === "9:16" && "aspect-[9/16]"
+                    )}
+                  >
+                    <div
+                      ref={designRef}
+                      className="w-full h-full rounded-3xl overflow-hidden border border-white/5"
+                    >
+                      {/* Simple AA-style one-pager layout */}
+                      <div className="h-full w-full p-8 bg-[#0B0F19] text-white flex flex-col">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-xs tracking-widest uppercase text-white/60">
+                              Attract Acquisition • {series || "Series"}
+                            </div>
+                            <div className="mt-2 text-3xl font-semibold leading-tight">
+                              {hook?.trim() ? hook.trim() : "One-Pager"}
+                            </div>
+                            <div className="mt-2 text-sm text-white/60">
+                              Audience: {audience}
+                            </div>
+                          </div>
+
+                          <div className="shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                              AA
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 grid grid-cols-1 gap-4">
+                          {onePagerBlocks.slice(0, 5).map((b, idx) => (
+                            <div
+                              key={b.id ?? idx}
+                              className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-7 h-7 rounded-xl bg-[#6A00F4]/90 flex items-center justify-center text-xs font-bold">
+                                  {idx + 1}
+                                </div>
+                                <div className="font-semibold">{b.title}</div>
+                              </div>
+
+                              <div className="text-sm leading-relaxed text-white/90 whitespace-pre-wrap">
+                                {b.content}
+                              </div>
+
+                              {b.details?.trim() ? (
+                                <div className="mt-3 text-xs text-white/60 whitespace-pre-wrap">
+                                  {b.details}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-auto pt-6 flex items-center justify-between text-xs text-white/50">
+                          <div>
+                            Template: {selectedTemplate ?? "default"} • Format:{" "}
+                            {selectedFormat}
+                          </div>
+                          <div className="text-white/60">aa-brand-studio</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right panel: script + notes */}
+                <div className="space-y-4">
+                  <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
+                    <div className="font-semibold mb-2">Script (reference)</div>
+                    <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-[360px] overflow-auto">
+                      {script || "No script loaded."}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
+                    <div className="font-semibold mb-2">What’s next</div>
+                    <div className="text-sm text-muted-foreground">
+                      Next we’ll wire the <span className="text-foreground">one_pager_agent</span> to
+                      output structured JSON (blocks + layout hints), then the <span className="text-foreground">design_agent</span>{" "}
+                      to pick a template + generate style tokens (typography, spacing, emphasis).
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(3)}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleSaveAndExport}
+                  disabled={isSaving || !onePagerBlocks?.length}
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Save & Export
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
   );
 }
+ 
