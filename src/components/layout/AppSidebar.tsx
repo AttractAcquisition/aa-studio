@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Sparkles,
   MessageCircle,
+  Upload,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -25,6 +26,7 @@ const navItems = [
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
   { title: "Asset Vault", url: "/assets", icon: FolderOpen },
   { title: "Proof Vault", url: "/proofs", icon: Trophy },
+  { title: "Upload", url: "/videos", icon: Upload },
   { title: "Enquiries", url: "/enquiries", icon: MessageCircle },
   { title: "Exports", url: "/exports", icon: Download },
 ];

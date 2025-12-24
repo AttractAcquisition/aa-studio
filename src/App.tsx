@@ -14,9 +14,9 @@ import AssetVault from "./pages/AssetVault";
 import ProofVault from "./pages/ProofVault";
 import Exports from "./pages/Exports";
 import Enquiries from "./pages/Enquiries";
+import Videos from "./pages/Videos";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-
 
 const queryClient = new QueryClient();
 
@@ -36,6 +36,7 @@ const App = () => (
           <Route path="/calendar" element={<AuthGuard><ContentCalendar /></AuthGuard>} />
           <Route path="/assets" element={<AuthGuard><AssetVault /></AuthGuard>} />
           <Route path="/proofs" element={<AuthGuard><ProofVault /></AuthGuard>} />
+          <Route path="/videos" element={<AuthGuard><Videos /></AuthGuard>} />
           <Route path="/exports" element={<AuthGuard><Exports /></AuthGuard>} />
           <Route path="/enquiries" element={<AuthGuard><Enquiries /></AuthGuard>} />
           <Route path="*" element={<NotFound />} />

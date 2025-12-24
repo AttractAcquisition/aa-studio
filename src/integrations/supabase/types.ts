@@ -656,6 +656,45 @@ export type Database = {
         }
         Relationships: []
       }
+      videos: {
+        Row: {
+          bucket: string
+          bytes: number | null
+          created_at: string
+          description: string | null
+          id: string
+          mime: string | null
+          path: string
+          platform: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          bucket?: string
+          bytes?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          mime?: string | null
+          path: string
+          platform?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          bucket?: string
+          bytes?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          mime?: string | null
+          path?: string
+          platform?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
