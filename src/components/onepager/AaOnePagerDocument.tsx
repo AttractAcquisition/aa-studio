@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 
 type OnePagerBlock = {
   id?: number | string;
@@ -8,278 +8,173 @@ type OnePagerBlock = {
 };
 
 type Props = {
+  brand?: string;
   series?: string;
-  hook?: string;
+  title?: string; // usually your hook
   audience?: string;
-  blocks: OnePagerBlock[];
+  blocks?: OnePagerBlock[];
 };
 
-/**
- * A clean "document-style" one-pager (white page, clear hierarchy)
- * Designed to look like a real downloadable page (like your 2nd screenshot).
- */
-export function AaOnePagerDocument({
-  series,
-  hook,
-  audience,
-  blocks,
-}: Props) {
-  const title = (hook || "One-Pager").trim();
-  const safeSeries = (series || "Series").trim();
-  const safeAudience = (audience || "Audience").trim();
+function splitToBullets(text: string) {
+  const t = String(text || "").trim();
+  if (!t) return [];
+  // split on new lines or "•" or "-" style bullets
+  const raw = t
+    .replace(/\r/g, "")
+    .split(/\n+|•\s*/g)
+    .map((s) => s.trim())
+    .filter(Boolean);
 
-  const topBlocks = blocks?.slice(0, 2) ?? [];
-  const workflowBlocks = blocks?.slice(2, 6) ?? [];
-  const extraBlocks = blocks?.slice(6) ?? [];
+  // if it's just one long sentence, don't force bullets
+  if (raw.length <= 1) return [];
+  return raw;
+}
+
+export function AaOnePagerDocument({
+  brand = "Attract Acquisition",
+  series = "Series",
+  title = "One-Pager",
+  audience = "Audience",
+  blocks = [],
+}: Props) {
+  const safeBlocks = Array.isArray(blocks) ? blocks : [];
+  const headerTitle = (title || "One-Pager").trim();
+
+  // Map blocks into a doc-like structure:
+  const howTo = safeBlocks[0];
+  const remaining = safeBlocks.slice(1);
+
+  const readMins = Math.max(
+    1,
+    Math.round(
+      safeBlocks
+        .map((b) => `${b.title || ""} ${b.content || ""} ${b.details || ""}`)
+        .join(" ")
+        .trim()
+        .split(/\s+/).filter(Boolean).length / 180
+    )
+  );
 
   return (
-    <div className="w-full h-full bg-white text-slate-900">
-      {/* PAGE */}
-      <div className="w-full h-full p-10">
-        {/* Header band */}
-        <div className="rounded-2xl overflow-hidden border border-slate-200">
-          <div className="px-7 py-6 bg-[#6A00F4] text-white">
-            <div className="flex items-center justify-between gap-6">
-              <div>
-                <div className="text-xs tracking-widest uppercase text-white/80">
-                  Attract Acquisition • {safeSeries}
-                </div>
-                <div className="mt-2 text-3xl font-semibold leading-tight">
-                  {title}
-                </div>
-                <div className="mt-2 text-sm text-white/80">
-                  Audience: {safeAudience}
-                </div>
+    <div className="w-full max-w-[780px] mx-auto">
+      {/* Paper */}
+      <div className="rounded-2xl overflow-hidden bg-white text-[#0B0F19] border border-black/10 shadow-[0_12px_40px_rgba(0,0,0,0.18)]">
+        {/* Top brand bar */}
+        <div className="bg-[#6A00F4] px-7 py-6 text-white">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <div className="text-[11px] tracking-[0.18em] uppercase text-white/80">
+                {brand} • {series}
               </div>
+              <div className="mt-2 text-[30px] leading-tight font-semibold">
+                {headerTitle}
+              </div>
+              <div className="mt-2 text-[12px] text-white/80">
+                Audience: <span className="text-white">{audience}</span>
+              </div>
+            </div>
 
-              <div className="shrink-0">
-                <div className="w-12 h-12 rounded-2xl bg-white/15 border border-white/20 flex items-center justify-center font-bold">
-                  AA
-                </div>
+            <div className="shrink-0">
+              <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/20 flex items-center justify-center font-bold">
+                AA
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Body */}
-          <div className="px-7 py-7 bg-white">
-            {/* Intro callout */}
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 w-8 h-8 rounded-xl bg-[#6A00F4]/10 border border-[#6A00F4]/20 flex items-center justify-center text-[#6A00F4] font-semibold">
-                  i
-                </div>
-                <div>
-                  <div className="font-semibold">How to use this one-pager</div>
-                  <div className="text-sm text-slate-600 mt-1 leading-relaxed">
-                    Read top-to-bottom. Turn each step into a post (or a short
-                    video). Save it, reuse it, and tweak the examples for the
-                    exact business you’re marketing.
-                  </div>
-                </div>
-              </div>
+        {/* Body */}
+        <div className="px-7 py-6">
+          {/* Meta row */}
+          <div className="flex items-center justify-between gap-4 text-[12px] text-black/60">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-6 items-center rounded-full bg-black/5 px-3">
+                One page
+              </span>
+              <span className="inline-flex h-6 items-center rounded-full bg-black/5 px-3">
+                ~{readMins} min read
+              </span>
             </div>
+            <div className="text-black/50">aa-brand-studio</div>
+          </div>
 
-            {/* Two-column layout */}
-            <div className="mt-7 grid grid-cols-1 lg:grid-cols-12 gap-7">
-              {/* Left column */}
-              <div className="lg:col-span-5 space-y-6">
-                <SectionTitle title="What’s actually happening" />
-
-                {topBlocks.length ? (
-                  <div className="space-y-4">
-                    {topBlocks.map((b, idx) => (
-                      <Card key={String(b.id ?? idx)}>
-                        <CardHeader
-                          number={idx + 1}
-                          title={b.title || `Point ${idx + 1}`}
-                        />
-                        <CardBody content={b.content} details={b.details} />
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyHint />
-                )}
-
-                <div className="rounded-2xl border border-slate-200 p-5">
-                  <div className="font-semibold">Quick checklist</div>
-                  <ul className="mt-3 space-y-2 text-sm text-slate-700">
-                    <li className="flex gap-2">
-                      <span className="text-[#6A00F4] font-bold">•</span>
-                      One clear promise (what this helps them do)
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-[#6A00F4] font-bold">•</span>
-                      4–6 steps they can follow today
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-[#6A00F4] font-bold">•</span>
-                      Examples (so it’s not “generic advice”)
-                    </li>
-                    <li className="flex gap-2">
-                      <span className="text-[#6A00F4] font-bold">•</span>
-                      A tiny CTA (comment / DM / book)
-                    </li>
-                  </ul>
-                </div>
+          {/* How to use */}
+          <div className="mt-5 rounded-2xl border border-black/10 bg-[#F6F1FF] p-5">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 w-9 h-9 rounded-xl bg-white border border-black/10 flex items-center justify-center">
+                <span className="text-[#6A00F4] font-bold">i</span>
               </div>
 
-              {/* Right column */}
-              <div className="lg:col-span-7 space-y-6">
-                <SectionTitle title="The 5-minute workflow (use this daily)" />
+              <div className="min-w-0">
+                <div className="font-semibold text-[14px]">
+                  How to use this one-pager
+                </div>
 
-                {workflowBlocks.length ? (
-                  <div className="space-y-3">
-                    {workflowBlocks.map((b, idx) => (
-                      <StepRow
-                        key={String(b.id ?? idx)}
-                        number={idx + 1}
-                        title={b.title || `Step ${idx + 1}`}
-                        content={b.content}
-                        details={b.details}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyHint />
-                )}
+                <div className="mt-2 text-[13px] leading-relaxed text-black/70">
+                  {howTo?.content?.trim()
+                    ? howTo.content
+                    : "Read top-to-bottom. Use it as a checklist while scripting. Then convert it into a clean reel/carousel with a single outcome."}
+                </div>
 
-                {extraBlocks.length ? (
-                  <div className="mt-6">
-                    <SectionTitle title="Extra notes / examples" />
-                    <div className="mt-3 space-y-3">
-                      {extraBlocks.slice(0, 4).map((b, idx) => (
-                        <Card key={String(b.id ?? idx)}>
-                          <CardHeader
-                            number={idx + 1}
-                            title={b.title || `Extra ${idx + 1}`}
-                          />
-                          <CardBody content={b.content} details={b.details} />
-                        </Card>
-                      ))}
-                    </div>
+                {howTo?.details?.trim() ? (
+                  <div className="mt-3 text-[12px] text-black/60 leading-relaxed">
+                    {howTo.details}
                   </div>
                 ) : null}
-
-                <div className="rounded-2xl border border-slate-200 bg-white p-5">
-                  <div className="font-semibold">CTA (optional)</div>
-                  <div className="mt-2 text-sm text-slate-700 leading-relaxed">
-                    If you want this turned into a full content system, drop a
-                    comment with <span className="font-semibold">“ONE-PAGER”</span>{" "}
-                    and I’ll send you the template.
-                  </div>
-                </div>
               </div>
             </div>
-
-            {/* Footer */}
-            <div className="mt-8 pt-5 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-              <div>Attract Acquisition • aa-brand-studio</div>
-              <div className="text-slate-600">v1 • Document layout</div>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/* ---------------- UI bits ---------------- */
+          {/* Sections */}
+          <div className="mt-6 grid grid-cols-1 gap-4">
+            {remaining.length ? (
+              remaining.slice(0, 6).map((b, idx) => {
+                const bullets = splitToBullets(b.details || "");
+                return (
+                  <div
+                    key={String(b.id ?? idx)}
+                    className="rounded-2xl border border-black/10 bg-white p-5"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-[#6A00F4]/10 border border-[#6A00F4]/20 flex items-center justify-center text-[12px] font-bold text-[#6A00F4]">
+                        {idx + 1}
+                      </div>
+                      <div className="font-semibold text-[14px]">
+                        {b.title?.trim() ? b.title : `Section ${idx + 1}`}
+                      </div>
+                    </div>
 
-function SectionTitle({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="text-lg font-semibold">{title}</div>
-      <div className="h-px flex-1 mx-4 bg-slate-200" />
-      <div className="text-xs uppercase tracking-widest text-slate-500">
-        One-Pager
-      </div>
-    </div>
-  );
-}
+                    {b.content?.trim() ? (
+                      <div className="mt-3 text-[13px] leading-relaxed text-black/70 whitespace-pre-wrap">
+                        {b.content}
+                      </div>
+                    ) : null}
 
-function EmptyHint() {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
-      No blocks were provided for this section yet.
-    </div>
-  );
-}
+                    {bullets.length ? (
+                      <ul className="mt-3 space-y-1.5 text-[12px] text-black/60 list-disc pl-5">
+                        {bullets.slice(0, 8).map((x, i) => (
+                          <li key={i}>{x}</li>
+                        ))}
+                      </ul>
+                    ) : b.details?.trim() ? (
+                      <div className="mt-3 text-[12px] text-black/60 whitespace-pre-wrap">
+                        {b.details}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl border border-black/10 bg-white p-6 text-[13px] text-black/60">
+                No sections yet.
+              </div>
+            )}
+          </div>
 
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      {children}
-    </div>
-  );
-}
-
-function CardHeader({ number, title }: { number: number; title: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="w-8 h-8 rounded-xl bg-[#6A00F4] text-white flex items-center justify-center font-bold text-sm">
-        {number}
-      </div>
-      <div className="font-semibold leading-snug">{title}</div>
-    </div>
-  );
-}
-
-function CardBody({
-  content,
-  details,
-}: {
-  content?: string;
-  details?: string;
-}) {
-  return (
-    <div className="mt-3 space-y-3">
-      {content?.trim() ? (
-        <div className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-          {content}
-        </div>
-      ) : null}
-
-      {details?.trim() ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
-          {details}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function StepRow({
-  number,
-  title,
-  content,
-  details,
-}: {
-  number: number;
-  title: string;
-  content?: string;
-  details?: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-2xl bg-[#6A00F4]/10 border border-[#6A00F4]/20 flex items-center justify-center text-[#6A00F4] font-bold">
-          {number}
-        </div>
-        <div className="flex-1">
-          <div className="font-semibold">{title}</div>
-          {content?.trim() ? (
-            <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
-              {content}
-            </div>
-          ) : null}
-
-          {details?.trim() ? (
-            <div className="mt-3 text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
-              <span className="font-semibold text-slate-700">Example:</span>{" "}
-              {details}
-            </div>
-          ) : null}
+          {/* Footer */}
+          <div className="mt-6 flex items-center justify-between text-[11px] text-black/45">
+            <div>{brand}</div>
+            <div>Generated via Content Factory</div>
+          </div>
         </div>
       </div>
     </div>
