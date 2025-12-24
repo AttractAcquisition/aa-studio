@@ -20,6 +20,17 @@ export function useTemplates() {
     enabled: !!user,
   });
 
+  const getTemplateById = async (id: string) => {
+    const { data, error } = await supabase
+      .from("templates")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) throw error;
+    return data;
+  };
+
   const createTemplate = useMutation({
     mutationFn: async (template: {
       key: string;
@@ -27,17 +38,19 @@ export function useTemplates() {
       category?: string;
       description?: string;
       formats?: string[];
-      config_schema?: Record<string, any>;
+      config_schema?: Record<string, unknown>;
+      preview_asset_path?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from("templates")
-        .insert({
+        .insert([{
           ...template,
+          config_schema: template.config_schema as any,
           user_id: user.id,
           is_system: false,
-        })
+        }])
         .select()
         .single();
 
@@ -49,10 +62,56 @@ export function useTemplates() {
     },
   });
 
+  const updateTemplate = useMutation({
+    mutationFn: async ({
+      id,
+      ...updates
+    }: {
+      id: string;
+      name?: string;
+      category?: string;
+      description?: string;
+      formats?: string[];
+      config_schema?: Record<string, unknown>;
+      preview_asset_path?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from("templates")
+        .update({ ...updates, config_schema: updates.config_schema as any })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["templates", user?.id] });
+    },
+  });
+
+  const deleteTemplate = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("templates")
+        .delete()
+        .eq("id", id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["templates", user?.id] });
+    },
+  });
+
   return {
     templates: templates || [],
     isLoading,
+    getTemplateById,
     createTemplate: createTemplate.mutate,
+    updateTemplate: updateTemplate.mutate,
+    deleteTemplate: deleteTemplate.mutate,
     isCreating: createTemplate.isPending,
+    isUpdating: updateTemplate.isPending,
   };
 }

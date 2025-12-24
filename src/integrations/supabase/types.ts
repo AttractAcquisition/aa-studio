@@ -83,10 +83,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "audits_output_content_item_id_fkey"
+            foreignKeyName: "audits_output_content_run_id_fkey"
             columns: ["output_content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "content_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -119,51 +119,6 @@ export type Database = {
           palette?: Json
           rules?: Json
           typography?: Json
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      content_items: {
-        Row: {
-          content_type: string
-          created_at: string | null
-          hook: string | null
-          id: string
-          on_brand_score: number | null
-          published_at: string | null
-          series: string | null
-          status: string | null
-          target_audience: string | null
-          title: string | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          content_type: string
-          created_at?: string | null
-          hook?: string | null
-          id?: string
-          on_brand_score?: number | null
-          published_at?: string | null
-          series?: string | null
-          status?: string | null
-          target_audience?: string | null
-          title?: string | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          content_type?: string
-          created_at?: string | null
-          hook?: string | null
-          id?: string
-          on_brand_score?: number | null
-          published_at?: string | null
-          series?: string | null
-          status?: string | null
-          target_audience?: string | null
-          title?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -262,10 +217,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "designs_content_item_id_fkey"
+            foreignKeyName: "designs_content_run_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "content_runs"
             referencedColumns: ["id"]
           },
           {
@@ -320,6 +275,53 @@ export type Database = {
         }
         Relationships: []
       }
+      events: {
+        Row: {
+          created_at: string
+          id: string
+          keyword: string | null
+          notes: string | null
+          occurred_at: string
+          platform: string | null
+          post_id: string | null
+          type: string
+          user_id: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          keyword?: string | null
+          notes?: string | null
+          occurred_at?: string
+          platform?: string | null
+          post_id?: string | null
+          type: string
+          user_id: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          keyword?: string | null
+          notes?: string | null
+          occurred_at?: string
+          platform?: string | null
+          post_id?: string | null
+          type?: string
+          user_id?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exports: {
         Row: {
           asset_id: string | null
@@ -360,10 +362,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "exports_content_item_id_fkey"
+            foreignKeyName: "exports_content_run_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "content_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -392,10 +394,64 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "one_pagers_content_item_id_fkey"
+            foreignKeyName: "one_pagers_content_run_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "content_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      proof_cards: {
+        Row: {
+          asset_id: string | null
+          claim: string
+          client_name: string | null
+          created_at: string
+          id: string
+          metric: string | null
+          proof_id: string | null
+          proof_type: string | null
+          timeframe: string | null
+          user_id: string
+        }
+        Insert: {
+          asset_id?: string | null
+          claim: string
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          metric?: string | null
+          proof_id?: string | null
+          proof_type?: string | null
+          timeframe?: string | null
+          user_id: string
+        }
+        Update: {
+          asset_id?: string | null
+          claim?: string
+          client_name?: string | null
+          created_at?: string
+          id?: string
+          metric?: string | null
+          proof_id?: string | null
+          proof_type?: string | null
+          timeframe?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proof_cards_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proof_cards_proof_id_fkey"
+            columns: ["proof_id"]
+            isOneToOne: false
+            referencedRelation: "proofs"
             referencedColumns: ["id"]
           },
         ]
@@ -449,36 +505,42 @@ export type Database = {
       }
       scheduled_posts: {
         Row: {
+          asset_ids: string[] | null
           content_item_id: string | null
           created_at: string | null
           id: string
           notes: string | null
           platform: string | null
           post_type: string
+          proof_card_id: string | null
           scheduled_for: string
           status: string | null
           title: string | null
           user_id: string
         }
         Insert: {
+          asset_ids?: string[] | null
           content_item_id?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
           platform?: string | null
           post_type: string
+          proof_card_id?: string | null
           scheduled_for: string
           status?: string | null
           title?: string | null
           user_id: string
         }
         Update: {
+          asset_ids?: string[] | null
           content_item_id?: string | null
           created_at?: string | null
           id?: string
           notes?: string | null
           platform?: string | null
           post_type?: string
+          proof_card_id?: string | null
           scheduled_for?: string
           status?: string | null
           title?: string | null
@@ -486,10 +548,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "scheduled_posts_content_item_id_fkey"
+            foreignKeyName: "scheduled_posts_content_run_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "content_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_posts_proof_card_id_fkey"
+            columns: ["proof_card_id"]
+            isOneToOne: false
+            referencedRelation: "proof_cards"
             referencedColumns: ["id"]
           },
         ]
@@ -521,10 +590,10 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "scripts_content_item_id_fkey"
+            foreignKeyName: "scripts_content_run_id_fkey"
             columns: ["content_item_id"]
             isOneToOne: false
-            referencedRelation: "content_items"
+            referencedRelation: "content_runs"
             referencedColumns: ["id"]
           },
         ]
