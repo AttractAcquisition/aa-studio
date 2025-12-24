@@ -104,83 +104,14 @@ function normalizeOnePagerBlocks(onePagerJson: any) {
 }
 
 // -------------------------------
-// Image extraction (tool outputs)
+// Design kind → prompt format mapping
+// (your prompt supports: one_pager | bold_text_card | reel_cover)
 // -------------------------------
-type ExtractedImage = {
-  url?: string; // http(s) URL OR data URL
-  data_url?: string; // data:image/png;base64,...
-  mime?: string;
-  width?: number;
-  height?: number;
-};
-
-function coerceImageItem(x: any): ExtractedImage | null {
-  if (!x) return null;
-
-  // If string is a URL or data URL
-  if (typeof x === "string") {
-    if (x.startsWith("data:image/") || x.startsWith("http://") || x.startsWith("https://")) {
-      return { url: x };
-    }
-    return null;
-  }
-
-  // Common shapes
-  if (typeof x === "object") {
-    const dataUrl = x.data_url || x.dataUrl || x.b64_json || x.base64;
-    if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
-      return { data_url: dataUrl, url: dataUrl, mime: "image/png" };
-    }
-
-    const url = x.url || x.image_url || x.href;
-    if (typeof url === "string") {
-      return {
-        url,
-        mime: x.mime || x.content_type || x.type,
-        width: x.width,
-        height: x.height,
-      };
-    }
-  }
-
-  return null;
-}
-
-function extractImagesFromWorkflowResult(r: any): ExtractedImage[] {
-  const out: ExtractedImage[] = [];
-
-  // 1) direct arrays
-  const directArrays = [
-    r?.images,
-    r?.output?.images,
-    r?.result?.images,
-    r?.artifacts,
-    r?.output?.artifacts,
-  ].filter(Boolean);
-
-  for (const arr of directArrays) {
-    if (Array.isArray(arr)) {
-      for (const item of arr) {
-        const coerced = coerceImageItem(item);
-        if (coerced) out.push(coerced);
-      }
-    }
-  }
-
-  // 2) sometimes nested in "output" content items (Responses-style)
-  const contentItems = r?.output ?? r?.response?.output;
-  if (Array.isArray(contentItems)) {
-    for (const item of contentItems) {
-      // some SDKs use { type:"output_image", image:{url...} } or similar
-      const coerced =
-        coerceImageItem(item?.image) ||
-        coerceImageItem(item?.content?.image) ||
-        coerceImageItem(item);
-      if (coerced) out.push(coerced);
-    }
-  }
-
-  return out;
+function mapKindToFormat(kind: string | undefined) {
+  if (kind === "bold_text_card") return { format: "bold_text_card", ratio: "1:1" as const };
+  if (kind === "reel_cover") return { format: "reel_cover", ratio: "9:16" as const };
+  if (kind === "one_pager_cover") return { format: "one_pager", ratio: "4:5" as const };
+  return { format: null as any, ratio: null as any };
 }
 
 app.post("/api/content-factory", async (req, res) => {
@@ -297,7 +228,7 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Supabase not configured on API (missing env vars)" });
       }
 
-      // 1) Load the script from DB
+      // 1) Load current row
       const { data: row, error: fetchErr } = await supabase
         .from("content_runs")
         .select("id, user_id, content_type, series, hook, target_audience, script_text")
@@ -307,7 +238,22 @@ app.post("/api/content-factory", async (req, res) => {
       if (fetchErr) throw fetchErr;
       if (!row) return res.status(404).json({ error: "Run not found" });
       if (row.user_id !== userId) return res.status(403).json({ error: "Forbidden" });
-      if (!row.script_text) return res.status(400).json({ error: "Run has no script_text yet" });
+
+      // ✅ Allow UI to pass edited script_text
+      const incomingScript = typeof body.script_text === "string" ? body.script_text : null;
+      const scriptToUse = (incomingScript && incomingScript.trim()) ? incomingScript.trim() : row.script_text;
+
+      if (!scriptToUse) {
+        return res.status(400).json({ error: "Run has no script_text yet" });
+      }
+
+      // ✅ Persist edited script back to DB
+      if (incomingScript && incomingScript.trim()) {
+        await supabase
+          .from("content_runs")
+          .update({ script_text: incomingScript.trim() })
+          .eq("id", run_id);
+      }
 
       // 2) Build prompt: meta + SCRIPT
       const input_as_text = [
@@ -317,7 +263,7 @@ app.post("/api/content-factory", async (req, res) => {
         `target_audience: ${row.target_audience}`,
         ``,
         `SCRIPT:`,
-        row.script_text,
+        scriptToUse,
       ].join("\n");
 
       // 3) Run one-pager agent
@@ -397,29 +343,29 @@ app.post("/api/content-factory", async (req, res) => {
     }
 
     // -------------------------------
-    // ACTION 3: GENERATE DESIGN (Agent generates images)
+    // ACTION 3: GENERATE DESIGN (AA_Design_Agent via runWorkflow route "design_agent")
     // -------------------------------
     if (body?.action === "generate_design") {
       const run_id = body.run_id as string;
 
-      // support UI "kind" values + prompt "format" values
-      const rawKind = (body.kind ?? body.format) as
+      // Frontend sends `kind` (bold_text_card | reel_cover | one_pager_cover)
+      const kind = (body.kind ?? null) as string | null;
+
+      // Prompt expects `format` (one_pager | bold_text_card | reel_cover)
+      const explicitFormat = (body.format ?? null) as
         | "one_pager"
         | "bold_text_card"
         | "reel_cover"
-        | "one_pager_cover";
+        | null;
 
-      // Map UI alias -> prompt format
-      const format = (rawKind === "one_pager_cover" ? "one_pager" : rawKind) as
-        | "one_pager"
-        | "bold_text_card"
-        | "reel_cover";
+      const mapped = kind ? mapKindToFormat(kind) : { format: null, ratio: null };
+      const format =
+        explicitFormat ?? (mapped.format as any);
 
       const ratio =
-        (body.ratio ?? (rawKind === "bold_text_card" ? "1:1" : rawKind === "reel_cover" ? "9:16" : "4:5")) as
-          | "4:5"
-          | "1:1"
-          | "9:16";
+        (body.ratio as "4:5" | "1:1" | "9:16" | null) ??
+        (mapped.ratio as any) ??
+        null;
 
       const mode = (body.mode ?? "clean") as "clean" | "punchy";
 
@@ -433,6 +379,7 @@ app.post("/api/content-factory", async (req, res) => {
         return res.status(400).json({
           error: "Missing or invalid format",
           supported: ["one_pager", "bold_text_card", "reel_cover"],
+          note: "If your UI uses kind=one_pager_cover, it is mapped to format=one_pager",
         });
       }
 
@@ -444,7 +391,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const { data: row, error: fetchErr } = await supabase
         .from("content_runs")
-        .select("id, user_id, series, hook, target_audience, one_pager_json")
+        .select("id, user_id, content_type, series, hook, target_audience, one_pager_json")
         .eq("id", run_id)
         .single();
 
@@ -457,7 +404,7 @@ app.post("/api/content-factory", async (req, res) => {
 
       const blocks = normalizeOnePagerBlocks(row.one_pager_json).slice(0, 7);
 
-      // ✅ matches your prompt input section
+      // Input must match your prompt's "Input" section
       const inputPayload = {
         brand: "Attract Acquisition",
         series: row.series,
@@ -465,54 +412,42 @@ app.post("/api/content-factory", async (req, res) => {
         audience: row.target_audience,
         blocks,
         mode,
-        ratio,
+        ratio: ratio ?? undefined,
         format,
       };
 
       const input_as_text = JSON.stringify(inputPayload, null, 2);
 
-      // IMPORTANT:
-      // Your runWorkflow must route "AA_Design_Agent" to your agent playground config.
       const r = await runWorkflow({
-        agent: "AA_Design_Agent",
+        // ✅ IMPORTANT: this must match your runWorkflow routes
+        agent: "design_agent",
         input_as_text,
       });
 
-      // 1) Try to extract images from tool outputs
-      const images = extractImagesFromWorkflowResult(r);
+      const out = String(r?.output_text ?? r?.finalOutput ?? "").trim();
+      const parsed = tryParseJson(out);
 
-      // 2) Also keep any text output (for debugging)
-      const outText = String(r?.output_text ?? r?.finalOutput ?? "").trim();
-
-      // 3) Optionally parse JSON if present (but don't fail if missing when images exist)
-      const parsed = outText ? tryParseJson(outText) : { ok: false as const, cleaned: "", json: null };
-
-      if (!images.length && !parsed.ok) {
-        // Return 200 so UI can show debug
+      if (!parsed.ok) {
         return res.status(200).json({
           run_id,
+          kind,
           format,
           ratio,
-          mode,
-          images: [],
           design_json: null,
-          error: "Design agent returned no images and no valid JSON.",
+          error: "Design agent returned invalid JSON.",
           debug: {
-            raw_preview: outText.slice(0, 600),
-            cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 600) : null,
-            workflow_keys: r && typeof r === "object" ? Object.keys(r).slice(0, 40) : null,
+            cleaned_preview: parsed.cleaned ? parsed.cleaned.slice(0, 400) : null,
+            raw_preview: out.slice(0, 400),
           },
         });
       }
 
       return res.status(200).json({
         run_id,
+        kind,
         format,
         ratio,
-        mode,
-        images, // ✅ this is what the frontend will render
-        design_json: parsed.ok ? parsed.json : null, // optional
-        raw_text: outText || null,
+        design_json: parsed.json,
       });
     }
 
