@@ -84,7 +84,14 @@ type GenerateDesignResponse = {
   format?: string;
   ratio?: string;
   mode?: string;
+
+  // ✅ NEW: preferred server response (base64)
+  image_b64?: string | null;
+  mime?: string;
+
+  // ✅ BACKCOMPAT: legacy server response
   images?: ExtractedImage[];
+
   design_json?: any;
   raw_text?: string | null;
   error?: string;
@@ -103,6 +110,10 @@ function pickFirstImageUrl(images?: ExtractedImage[]) {
   if (!Array.isArray(images) || images.length === 0) return null;
   const first = images[0];
   return first?.url || first?.data_url || null;
+}
+
+function b64ToDataUrl(b64: string, mime = "image/png") {
+  return `data:${mime};base64,${b64}`;
 }
 
 async function urlToBlob(url: string): Promise<Blob> {
@@ -326,7 +337,8 @@ export default function ContentFactory() {
       });
 
       const data = (await res.json().catch(() => ({}))) as GenerateOnePagerResponse;
-      if (!res.ok) throw new Error((data as any)?.error || "Failed to generate one-pager");
+      if (!res.ok)
+        throw new Error((data as any)?.error || "Failed to generate one-pager");
 
       // ✅ Prefer canonical blocks from server if present
       let blocks: any[] = Array.isArray(data.blocks) ? data.blocks : [];
@@ -496,7 +508,9 @@ export default function ContentFactory() {
           <div>
             <div class="kicker">Attract Acquisition • ${escapeHtml(series || "Series")}</div>
             <div class="title">${escapeHtml(hook?.trim() ? hook.trim() : "One-Pager")}</div>
-            <div class="sub">Audience: <b style="color:#fff">${escapeHtml(audience)}</b></div>
+            <div class="sub">Audience: <b style="color:#fff">${escapeHtml(
+              audience
+            )}</b></div>
           </div>
           <div class="aa">AA</div>
         </div>
@@ -572,7 +586,11 @@ export default function ContentFactory() {
 
     try {
       const ratio =
-        kind === "bold_text_card" ? "1:1" : kind === "reel_cover" ? "9:16" : "4:5";
+        kind === "bold_text_card"
+          ? "1:1"
+          : kind === "reel_cover"
+            ? "9:16"
+            : "4:5";
 
       const payload = {
         action: "generate_design",
@@ -603,13 +621,19 @@ export default function ContentFactory() {
       const data = (await res.json().catch(() => ({}))) as GenerateDesignResponse;
 
       // Even if status is 200, API may return { error }
-      if (!res.ok) throw new Error((data as any)?.error || "Failed to generate design");
+      if (!res.ok)
+        throw new Error((data as any)?.error || "Failed to generate design");
       if (data?.error) throw new Error(data.error);
 
-      const imageUrl = pickFirstImageUrl(data.images);
+      // ✅ Prefer image_b64, fallback to legacy images[]
+      const imageUrl = data?.image_b64
+        ? b64ToDataUrl(data.image_b64, data.mime || "image/png")
+        : pickFirstImageUrl(data.images);
+
       if (!imageUrl) {
         throw new Error(
-          "No image returned. Your runWorkflow must return image tool outputs (images/artifacts)."
+          data?.error ||
+            "No image returned from API. Expected image_b64 (preferred) or images[]."
         );
       }
 
@@ -638,7 +662,10 @@ export default function ContentFactory() {
   // -----------------------------
   // Step 4: Export a single image
   // -----------------------------
-  const exportImageUrl = async (url: string | null | undefined, basename: string) => {
+  const exportImageUrl = async (
+    url: string | null | undefined,
+    basename: string
+  ) => {
     if (!url) {
       toast({
         title: "Nothing to export",
@@ -1115,7 +1142,8 @@ export default function ContentFactory() {
                     Design Assets
                   </h2>
                   <p className="text-muted-foreground">
-                    Agent-generated images: Bold Text Card • Reel Cover • One-Pager Cover
+                    Agent-generated images: Bold Text Card • Reel Cover • One-Pager
+                    Cover
                   </p>
                 </div>
               </div>
@@ -1143,7 +1171,11 @@ export default function ContentFactory() {
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
                     <div className="aspect-square w-full rounded-2xl overflow-hidden bg-[#0B0F19] flex items-center justify-center">
                       {boldImg ? (
-                        <img src={boldImg} alt="Bold text card" className="w-full h-full object-cover" />
+                        <img
+                          src={boldImg}
+                          alt="Bold text card"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="text-white/60 text-sm px-6 text-center">
                           Generate to preview image.
@@ -1193,7 +1225,11 @@ export default function ContentFactory() {
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
                     <div className="aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#0B0F19] flex items-center justify-center">
                       {reelImg ? (
-                        <img src={reelImg} alt="Reel cover" className="w-full h-full object-cover" />
+                        <img
+                          src={reelImg}
+                          alt="Reel cover"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="text-white/60 text-sm px-6 text-center">
                           Generate to preview image.
@@ -1243,7 +1279,11 @@ export default function ContentFactory() {
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
                     <div className="aspect-[4/5] w-full rounded-2xl overflow-hidden bg-[#0B0F19] flex items-center justify-center">
                       {coverImg ? (
-                        <img src={coverImg} alt="One pager cover" className="w-full h-full object-cover" />
+                        <img
+                          src={coverImg}
+                          alt="One pager cover"
+                          className="w-full h-full object-cover"
+                        />
                       ) : (
                         <div className="text-white/60 text-sm px-6 text-center">
                           Generate to preview image.
