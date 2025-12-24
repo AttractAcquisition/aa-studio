@@ -60,16 +60,6 @@ const steps = [
   { id: 4, title: "Design", icon: Image },
 ];
 
-type GenerateScriptResponse = {
-  run_id: string;
-  script_text?: string;
-  script?: { text?: string };
-  output?: { script?: { text?: string } };
-  brief?: any;
-  brief_json?: any;
-  script_json?: any;
-};
-
 type GenerateOnePagerResponse = {
   run_id: string;
   one_pager_json?: any;
@@ -81,7 +71,6 @@ type GenerateOnePagerResponse = {
 
 type DesignAssetKind = "bold_text_card" | "reel_cover" | "one_pager_cover";
 
-// What we store locally to populate the UI card text
 type DesignTextBlock = {
   kicker?: string;
   headline?: string;
@@ -93,7 +82,7 @@ type DesignTextBlock = {
 
 type GenerateDesignResponse = {
   run_id: string;
-  format?: string; // server returns "format"
+  format?: string;
   design_json?: any;
   error?: string;
   debug?: any;
@@ -113,26 +102,23 @@ function safeUUID() {
     : `${Date.now()}-${Math.random()}`;
 }
 
-// Map UI "kind" -> Design Agent "format" + ratio (per your prompt schema)
 function mapKindToDesignRequest(kind: DesignAssetKind): {
   format: "bold_text_card" | "reel_cover" | "one_pager";
   ratio: "1:1" | "9:16" | "4:5";
 } {
   if (kind === "bold_text_card") return { format: "bold_text_card", ratio: "1:1" };
   if (kind === "reel_cover") return { format: "reel_cover", ratio: "9:16" };
-  // one_pager_cover is NOT a supported format in the prompt — treat it as a bold_text_card in 4:5
+  // One-pager cover: we treat it as a bold_text_card but 4:5 (cover-style card)
   return { format: "bold_text_card", ratio: "4:5" };
 }
 
 function extractFromLayout(designJson: any): Partial<DesignTextBlock> {
   const out: Partial<DesignTextBlock> = {};
   const comps = designJson?.layout?.components;
-
   if (!Array.isArray(comps)) return out;
 
   const getText = (v: any) => (v == null ? "" : String(v)).trim();
 
-  // kicker: try badge/header content
   const badge = comps.find((c: any) => c?.type === "badge");
   if (badge?.content) {
     out.kicker =
@@ -151,7 +137,6 @@ function extractFromLayout(designJson: any): Partial<DesignTextBlock> {
       undefined;
   }
 
-  // bullets: try bullets component content
   const bullets = comps.find((c: any) => c?.type === "bullets");
   if (bullets?.content) {
     const items =
@@ -168,7 +153,6 @@ function extractFromLayout(designJson: any): Partial<DesignTextBlock> {
     }
   }
 
-  // footer
   const footer = comps.find((c: any) => c?.type === "footer");
   if (footer?.content) {
     out.footer_left =
@@ -185,14 +169,12 @@ function extractFromLayout(designJson: any): Partial<DesignTextBlock> {
 }
 
 function normalizeDesignTextBlock(
-  kind: DesignAssetKind,
   designJson: any,
   fallback: Partial<DesignTextBlock>
 ): DesignTextBlock {
   const copy = designJson?.copy ?? {};
   const fromLayout = extractFromLayout(designJson);
 
-  // prompt schema: copy.headline, copy.subheadline, copy.cta
   const headline =
     (copy?.headline != null ? String(copy.headline) : "").trim() ||
     (copy?.title != null ? String(copy.title) : "").trim() ||
@@ -203,7 +185,6 @@ function normalizeDesignTextBlock(
     (copy?.subtitle != null ? String(copy.subtitle) : "").trim() ||
     fallback.subheadline;
 
-  // Optional: if an agent returns bullets in copy (not required by schema)
   const bulletsFromCopy = Array.isArray(copy?.bullets)
     ? copy.bullets.map((b: any) => String(b).trim()).filter(Boolean)
     : undefined;
@@ -226,7 +207,6 @@ export default function ContentFactory() {
 
   const [currentStep, setCurrentStep] = useState(1);
 
-  // content_runs.id (run_id)
   const [contentItemId, setContentItemId] = useState<string | null>(null);
 
   const [contentType, setContentType] = useState("");
@@ -240,7 +220,6 @@ export default function ContentFactory() {
 
   const [onePagerBlocks, setOnePagerBlocks] = useState<any[]>([]);
 
-  // ✅ Design agent output (copy for each asset)
   const [designCopy, setDesignCopy] = useState<{
     bold_text_card?: DesignTextBlock;
     reel_cover?: DesignTextBlock;
@@ -249,15 +228,11 @@ export default function ContentFactory() {
   const [isGeneratingDesignKind, setIsGeneratingDesignKind] =
     useState<DesignAssetKind | null>(null);
 
-  // Step 3: document ref (export + screenshot)
   const onePagerDocRef = useRef<HTMLDivElement>(null);
-
-  // Step 4: individual asset refs
   const boldTextRef = useRef<HTMLDivElement>(null);
   const reelCoverRef = useRef<HTMLDivElement>(null);
   const onePagerCoverRef = useRef<HTMLDivElement>(null);
 
-  // Script word target
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
   const isWordCountValid = wordCount >= 140 && wordCount <= 160;
   const estSeconds = Math.round(wordCount * 0.4);
@@ -270,16 +245,34 @@ export default function ContentFactory() {
     import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
 
   // -----------------------------
+  // Helpers: HTTP
+  // -----------------------------
+  const buildHeaders = () => {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const accessToken = session?.access_token;
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    if (user?.id) headers["x-user-id"] = user.id;
+    return headers;
+  };
+
+  const postJson = async <T,>(payload: any): Promise<{ ok: boolean; data: T }> => {
+    const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = (await res.json().catch(() => ({}))) as T;
+    return { ok: res.ok, data };
+  };
+
+  // -----------------------------
   // Helpers: export
   // -----------------------------
   const renderNodeToBlob = async (
     node: HTMLElement,
     backgroundColor: string = "#0B0F19"
   ) => {
-    const canvas = await html2canvas(node, {
-      backgroundColor,
-      scale: 2,
-    });
+    const canvas = await html2canvas(node, { backgroundColor, scale: 2 });
 
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
@@ -308,7 +301,6 @@ export default function ContentFactory() {
 
     try {
       const blob = await renderNodeToBlob(node, bg);
-
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -318,10 +310,7 @@ export default function ContentFactory() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      toast({
-        title: "Exported",
-        description: "Downloaded PNG.",
-      });
+      toast({ title: "Exported", description: "Downloaded PNG." });
     } catch (e: any) {
       toast({
         title: "Export failed",
@@ -367,17 +356,9 @@ export default function ContentFactory() {
         idempotency_key: safeUUID(),
       };
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      const accessToken = session?.access_token;
-      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-      if (user?.id) headers["x-user-id"] = user.id;
-
       const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
         method: "POST",
-        headers,
+        headers: buildHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -449,30 +430,19 @@ export default function ContentFactory() {
         idempotency_key: safeUUID(),
       };
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-
-      const accessToken = session?.access_token;
-      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-      if (user?.id) headers["x-user-id"] = user.id;
-
       const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
         method: "POST",
-        headers,
+        headers: buildHeaders(),
         body: JSON.stringify(payload),
       });
 
       const data = (await res.json().catch(() => ({}))) as GenerateOnePagerResponse;
 
-      // NOTE: server may return 200 with data.error for debug
       if (!res.ok) throw new Error((data as any)?.error || "Failed to generate one-pager");
       if (data?.error) throw new Error(data.error);
 
-      // ✅ Prefer canonical blocks from server if present
       let blocks: any[] = Array.isArray(data.blocks) ? data.blocks : [];
 
-      // Fallback: infer from one_pager_json if blocks missing
       if (!blocks.length) {
         const opj = data.one_pager_json;
 
@@ -495,16 +465,10 @@ export default function ContentFactory() {
       }
 
       setOnePagerBlocks(blocks);
-
-      // ✅ Clear design copy because the source content changed
       setDesignCopy({});
-
       setCurrentStep(3);
 
-      toast({
-        title: "One-Pager generated!",
-        description: "Preview is ready.",
-      });
+      toast({ title: "One-Pager generated!", description: "Preview is ready." });
     } catch (error: any) {
       toast({
         title: "Error",
@@ -541,10 +505,7 @@ export default function ContentFactory() {
       a.remove();
       URL.revokeObjectURL(url);
 
-      toast({
-        title: "Exported",
-        description: "Downloaded your one-pager PNG.",
-      });
+      toast({ title: "Exported", description: "Downloaded your one-pager PNG." });
     } catch (e: any) {
       toast({
         title: "Export failed",
@@ -680,7 +641,8 @@ export default function ContentFactory() {
   };
 
   // -----------------------------
-  // Step 4: Generate Design Copy (wired to backend)
+  // Step 4: Generate Design Copy
+  // Fix: retry legacy payloads if backend complains about agent route
   // -----------------------------
   const handleGenerateDesignAsset = async (kind: DesignAssetKind) => {
     if (!user) {
@@ -712,10 +674,33 @@ export default function ContentFactory() {
 
     setIsGeneratingDesignKind(kind);
 
-    try {
-      const req = mapKindToDesignRequest(kind);
+    const req = mapKindToDesignRequest(kind);
 
-      const payload = {
+    // Fallback copy so UI never goes blank
+    const seriesLabel = series ? series.split("-").join(" ") : "Attraction Audit";
+    const fallbackByKind: Record<DesignAssetKind, Partial<DesignTextBlock>> = {
+      bold_text_card: {
+        kicker: "Attract Acquisition",
+        headline: hook?.trim() ? hook.trim() : "YOUR CONTENT IS NOISE.",
+        subheadline: series ? `Series: ${series}` : "Make your message unignorable.",
+        footer_left: audience,
+        footer_right: "aa-brand-studio",
+      },
+      reel_cover: {
+        kicker: seriesLabel.toUpperCase(),
+        headline: hook?.trim() ? hook.trim() : "This is why your content doesn’t convert.",
+        subheadline: "Watch before you post — fix the one thing that blocks bookings.",
+      },
+      one_pager_cover: {
+        kicker: "Attract Acquisition",
+        headline: hook?.trim() ? hook.trim() : "One-Pager",
+        bullets: ["Clear steps (no fluff)", "A simple checklist", "Examples you can copy"],
+      },
+    };
+
+    try {
+      // Attempt A (new): format/ratio (your AA_Design_Agent schema)
+      const attemptA = {
         action: "generate_design",
         run_id: contentItemId,
         format: req.format,
@@ -724,70 +709,58 @@ export default function ContentFactory() {
         idempotency_key: safeUUID(),
       };
 
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+      let r = await postJson<GenerateDesignResponse>(attemptA);
 
-      const accessToken = session?.access_token;
-      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-      if (user?.id) headers["x-user-id"] = user.id;
+      const errorA =
+        (!r.ok && (r.data as any)?.error) ||
+        (r.data as any)?.error ||
+        (!r.ok ? "Failed to generate design" : null);
 
-      const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-      });
-
-      const data = (await res.json().catch(() => ({}))) as GenerateDesignResponse;
-
-      if (!res.ok) {
-        throw new Error((data as any)?.error || "Failed to generate design");
+      // Attempt B (legacy): kind only (some backends map kind internally)
+      if (errorA && String(errorA).toLowerCase().includes("unknown agent route")) {
+        const attemptB = {
+          action: "generate_design",
+          run_id: contentItemId,
+          kind,
+          idempotency_key: safeUUID(),
+        };
+        r = await postJson<GenerateDesignResponse>(attemptB);
       }
-      if (data?.error) {
-        throw new Error(data.error);
+
+      // Attempt C (legacy+explicit agent): if backend needs agent name
+      const errorB =
+        (!r.ok && (r.data as any)?.error) ||
+        (r.data as any)?.error ||
+        (!r.ok ? "Failed to generate design" : null);
+
+      if (errorB && String(errorB).toLowerCase().includes("unknown agent route")) {
+        const attemptC = {
+          action: "generate_design",
+          run_id: contentItemId,
+          agent: "aa_design_agent", // common naming; backend can ignore if not used
+          kind,
+          idempotency_key: safeUUID(),
+        };
+        r = await postJson<GenerateDesignResponse>(attemptC);
       }
+
+      const data = r.data as any;
+      if (!r.ok) throw new Error(data?.error || "Failed to generate design");
+      if (data?.error) throw new Error(data.error);
 
       const dj = data.design_json;
       if (!dj || typeof dj !== "object") {
         throw new Error("Design agent returned no usable JSON payload.");
       }
 
-      // Fallback copy per kind (so UI never goes blank)
-      const seriesLabel = series ? series.split("-").join(" ") : "Attraction Audit";
-      const fallbackByKind: Record<DesignAssetKind, Partial<DesignTextBlock>> = {
-        bold_text_card: {
-          kicker: "Attract Acquisition",
-          headline: hook?.trim() ? hook.trim() : "YOUR CONTENT IS NOISE.",
-          subheadline: series ? `Series: ${series}` : "Make your message unignorable.",
-          footer_left: audience,
-          footer_right: "aa-brand-studio",
-        },
-        reel_cover: {
-          kicker: seriesLabel.toUpperCase(),
-          headline: hook?.trim()
-            ? hook.trim()
-            : "This is why your content doesn’t convert.",
-          subheadline:
-            "Watch before you post — fix the one thing that blocks bookings.",
-        },
-        one_pager_cover: {
-          kicker: "Attract Acquisition",
-          headline: hook?.trim() ? hook.trim() : "One-Pager",
-          bullets: ["Clear steps (no fluff)", "A simple checklist", "Examples you can copy"],
-        },
-      };
-
-      const normalized = normalizeDesignTextBlock(kind, dj, fallbackByKind[kind]);
+      const normalized = normalizeDesignTextBlock(dj, fallbackByKind[kind]);
 
       setDesignCopy((prev) => ({
         ...prev,
         [kind]: normalized,
       }));
 
-      toast({
-        title: "Generated",
-        description: "Design copy updated.",
-      });
+      toast({ title: "Generated", description: "Design copy updated." });
     } catch (e: any) {
       toast({
         title: "Design generation failed",
@@ -878,7 +851,12 @@ export default function ContentFactory() {
         const blob = await renderNodeToBlob(item.node, "#0B0F19");
         const filename = `${item.filenameBase}_${Date.now()}_${item.format}.png`;
 
-        const uploaded = await uploadBlobToBucket("aa-designs", blob, user.id, filename);
+        const uploaded = await uploadBlobToBucket(
+          "aa-designs",
+          blob,
+          user.id,
+          filename
+        );
         if (!uploaded) throw new Error(`Upload failed (${item.key})`);
 
         const asset = await createAssetRow(
@@ -908,7 +886,6 @@ export default function ContentFactory() {
         description: `Saved ${successCount}/3 designs to your vault.`,
       });
 
-      // Reset (same behavior)
       setCurrentStep(1);
       setContentItemId(null);
       setContentType("");
@@ -929,7 +906,7 @@ export default function ContentFactory() {
   };
 
   // -----------------------------
-  // Derived values (use design copy with fallbacks)
+  // Derived values
   // -----------------------------
   const bold = designCopy.bold_text_card;
   const reel = designCopy.reel_cover;
@@ -990,7 +967,9 @@ export default function ContentFactory() {
                 <span
                   className={cn(
                     "text-xs font-medium mt-2",
-                    currentStep >= step.id ? "text-foreground" : "text-muted-foreground"
+                    currentStep >= step.id
+                      ? "text-foreground"
+                      : "text-muted-foreground"
                   )}
                 >
                   {step.title}
@@ -1041,7 +1020,9 @@ export default function ContentFactory() {
                 </div>
 
                 <div>
-                  <Label className="text-muted-foreground mb-2 block">Series</Label>
+                  <Label className="text-muted-foreground mb-2 block">
+                    Series
+                  </Label>
                   <Select value={series} onValueChange={setSeries}>
                     <SelectTrigger className="h-12">
                       <SelectValue placeholder="Select series..." />
@@ -1113,7 +1094,8 @@ export default function ContentFactory() {
                     Script Editor
                   </h2>
                   <p className="text-muted-foreground">
-                    Edit your AI-generated script. Target: 140–160 words (~60s TTS).
+                    Edit your AI-generated script. Target: 140–160 words (~60s
+                    TTS).
                   </p>
                 </div>
 
@@ -1215,7 +1197,9 @@ export default function ContentFactory() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">Document preview</div>
+                  <div className="text-sm text-muted-foreground">
+                    Document preview
+                  </div>
 
                   <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
                     <div ref={onePagerDocRef}>
@@ -1250,7 +1234,7 @@ export default function ContentFactory() {
             </div>
           )}
 
-          {/* Step 4: Design Assets (3-column layout) */}
+          {/* Step 4 */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="flex items-start justify-between gap-4">
@@ -1259,7 +1243,8 @@ export default function ContentFactory() {
                     Design Assets
                   </h2>
                   <p className="text-muted-foreground">
-                    Generate export-ready visuals: Bold Text Card • Reel Cover • One-Pager Cover
+                    Generate export-ready visuals: Bold Text Card • Reel Cover •
+                    One-Pager Cover
                   </p>
                 </div>
               </div>
@@ -1276,7 +1261,9 @@ export default function ContentFactory() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => exportNodeAsPng(boldTextRef.current, "aa_bold_text_card")}
+                      onClick={() =>
+                        exportNodeAsPng(boldTextRef.current, "aa_bold_text_card")
+                      }
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export PNG
@@ -1284,7 +1271,10 @@ export default function ContentFactory() {
                   </div>
 
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
-                    <div ref={boldTextRef} className="aspect-square w-full rounded-2xl overflow-hidden">
+                    <div
+                      ref={boldTextRef}
+                      className="aspect-square w-full rounded-2xl overflow-hidden"
+                    >
                       <div className="h-full w-full bg-[#0B0F19] text-white p-7 flex flex-col justify-between">
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
@@ -1342,7 +1332,9 @@ export default function ContentFactory() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")}
+                      onClick={() =>
+                        exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")
+                      }
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export PNG
@@ -1350,7 +1342,10 @@ export default function ContentFactory() {
                   </div>
 
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
-                    <div ref={reelCoverRef} className="aspect-[9/16] w-full rounded-2xl overflow-hidden">
+                    <div
+                      ref={reelCoverRef}
+                      className="aspect-[9/16] w-full rounded-2xl overflow-hidden"
+                    >
                       <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
                         <div className="flex items-start justify-between">
                           <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
@@ -1414,7 +1409,9 @@ export default function ContentFactory() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => exportNodeAsPng(onePagerCoverRef.current, "aa_one_pager_cover")}
+                      onClick={() =>
+                        exportNodeAsPng(onePagerCoverRef.current, "aa_one_pager_cover")
+                      }
                     >
                       <Download className="w-4 h-4 mr-2" />
                       Export PNG
@@ -1422,7 +1419,10 @@ export default function ContentFactory() {
                   </div>
 
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
-                    <div ref={onePagerCoverRef} className="aspect-[4/5] w-full rounded-2xl overflow-hidden">
+                    <div
+                      ref={onePagerCoverRef}
+                      className="aspect-[4/5] w-full rounded-2xl overflow-hidden"
+                    >
                       <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
                         <div className="flex items-start justify-between gap-4">
                           <div>
