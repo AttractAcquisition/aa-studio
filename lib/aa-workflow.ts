@@ -1,3 +1,4 @@
+// lib/aa-workflow.ts
 import { z } from "zod";
 import { Agent, AgentInputItem, Runner, withTrace } from "@openai/agents";
 
@@ -56,8 +57,13 @@ const aaDesignAgent = new Agent({
 });
 
 // ✅ You MUST pass which branch to run
-type WorkflowInput = {
-  agent: "brief_agent" | "script_agent" | "tts_agent" | "one_pager_agent" | "design_agent";
+export type WorkflowInput = {
+  agent:
+    | "brief_agent"
+    | "script_agent"
+    | "tts_agent"
+    | "one_pager_agent"
+    | "design_agent";
   input_as_text: string;
 };
 
@@ -91,8 +97,24 @@ export const runWorkflow = async (workflow: WorkflowInput) => {
 
       if (!script_text) {
         // fallback: try to grab last assistant text if schema parsing ever fails
-        const last = r.newItems?.slice().reverse().find((i) => i.rawItem?.role === "assistant");
-        const maybeText = (last as any)?.rawItem?.content?.[0]?.text ?? "";
+        const last = r.newItems
+          ?.slice()
+          .reverse()
+          .find((i) => (i as any)?.rawItem?.role === "assistant");
+
+        const content = (last as any)?.rawItem?.content;
+
+        // content can be string or array depending on SDK internals
+        const maybeText =
+          typeof content === "string"
+            ? content
+            : Array.isArray(content)
+              ? content
+                  .map((c: any) => c?.text ?? "")
+                  .filter(Boolean)
+                  .join("\n")
+              : "";
+
         if (!maybeText) throw new Error("Script agent returned no script text");
         return { script_text: maybeText, output_text: maybeText };
       }
