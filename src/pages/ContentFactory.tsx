@@ -127,7 +127,7 @@ export default function ContentFactory() {
   // ✅ Point this at YOUR server API route.
   // That API route imports lib/aa-workflow.ts and runs the Agent workflow.
 const CONTENT_FACTORY_WEBHOOK =
-  import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
+  import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL ?? "/api/content-factory";
 
   const handleGenerateScript = async () => {
     if (!user) {
