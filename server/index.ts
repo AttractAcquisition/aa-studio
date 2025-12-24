@@ -6,29 +6,22 @@ import { runWorkflow } from "../lib/aa-workflow";
 
 const app = express();
 
-// ✅ CORS: allow Lovable + local dev
-app.use(
-  cors({
-    origin: [
-      "http://localhost:8080",
-      // add your Lovable deployed domain here:
-      // "https://your-app.lovable.app"
-    ],
-  })
-);
+// CORS is fine open for now; later restrict to your Lovable domain
+app.use(cors());
 
+// Always parse JSON
 app.use(express.json({ limit: "2mb" }));
+
+// Always return JSON (prevents “Unexpected token <” from HTML error pages)
+app.use((req, res, next) => {
+  res.setHeader("Content-Type", "application/json");
+  next();
+});
 
 const supabase =
   process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
-
-// ✅ Always return JSON for this route (prevents HTML -> JSON parse errors)
-app.all("/api/content-factory", (_req, res, next) => {
-  res.setHeader("Content-Type", "application/json");
-  next();
-});
 
 app.get("/api/content-factory", (_req, res) => {
   return res.status(405).json({ error: "Use POST" });
@@ -51,7 +44,7 @@ app.post("/api/content-factory", async (req, res) => {
 
     const { content_type, series, hook, target_audience } = body.inputs;
 
-    // 1) Create run row
+    // Create run row (recommended)
     let run_id = crypto.randomUUID();
     if (supabase) {
       const { data, error } = await supabase
@@ -67,16 +60,17 @@ app.post("/api/content-factory", async (req, res) => {
         })
         .select("id")
         .single();
+
       if (error) throw error;
       run_id = data.id;
     }
 
-    // 2) Run workflow
+    // Run workflow
     const result = await runWorkflow({
       inputs: { content_type, series, hook: hook ?? "", target_audience },
     });
 
-    // ✅ Agents SDK commonly returns final output here:
+    // ✅ Agents SDK commonly puts final output here
     const final = (result as any)?.finalOutput;
 
     const script_text =
@@ -84,8 +78,8 @@ app.post("/api/content-factory", async (req, res) => {
         ? final
         : final?.script_text ?? final?.text ?? final?.script?.text ?? "";
 
-    const brief_json = (result as any)?.brief_json ?? (result as any)?.brief ?? null;
-    const script_json = (result as any)?.script_json ?? (result as any)?.script ?? final ?? null;
+    const brief_json = (result as any)?.output?.brief ?? (result as any)?.brief ?? null;
+    const script_json = (result as any)?.output?.script ?? (result as any)?.script ?? final ?? null;
 
     if (!script_text) {
       if (supabase) {
@@ -93,18 +87,17 @@ app.post("/api/content-factory", async (req, res) => {
           .from("content_runs")
           .update({
             status: "FAILED",
-            last_error: "Workflow returned no script text (check finalOutput shape).",
+            last_error: "No script text returned (check workflow output shape)",
           })
           .eq("id", run_id);
       }
 
       return res.status(500).json({
-        error: "Workflow returned no script text.",
-        debug: { keys: Object.keys(result || {}), hasFinalOutput: Boolean((result as any)?.finalOutput) },
+        error: "Workflow returned no script text. Check aa-workflow.ts output shape.",
+        debug: { keys: Object.keys(result || {}), finalType: typeof final },
       });
     }
 
-    // 3) Save outputs
     if (supabase) {
       await supabase
         .from("content_runs")
@@ -112,13 +105,13 @@ app.post("/api/content-factory", async (req, res) => {
         .eq("id", run_id);
     }
 
-    return res.status(200).json({ run_id, brief_json, script_json, script_text });
+    return res.json({ run_id, brief_json, script_json, script_text });
   } catch (e: any) {
     console.error(e);
     return res.status(500).json({ error: e?.message ?? "Unknown error" });
   }
 });
 
-// ✅ Use host-provided port in production
-const PORT = Number(process.env.PORT || 3001);
-app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
+// ✅ Railway requires binding to process.env.PORT
+const PORT = Number(process.env.PORT) || 3001;
+app.listen(PORT, "0.0.0.0", () => console.log(`API listening on port ${PORT}`));
