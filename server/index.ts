@@ -24,9 +24,10 @@ const supabase =
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai =
+  process.env.OPENAI_API_KEY
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
 
 // ✅ Healthcheck for Railway
 app.get("/health", (_req, res) => res.status(200).json({ ok: true }));
@@ -72,13 +73,18 @@ function extractJsonValue(s: string) {
 }
 
 function tryParseJson(raw: string) {
-  const cleaned = extractJsonValue(stripCodeFences(raw));
-  if (!cleaned) return { ok: false as const, cleaned: "", json: null };
+ _RELAX:
+  {
+    const cleaned = extractJsonValue(stripCodeFences(raw));
+    if (!cleaned) return { ok: false as const, cleaned: "", json: null };
 
-  try {
-    return { ok: true as const, cleaned, json: JSON.parse(cleaned) };
-  } catch {
-    return { ok: false as const, cleaned, json: null };
+    try {
+      return { ok: true as const, cleaned, json: JSON.parse(cleaned) };
+    } catch {
+      // last-chance: sometimes there are trailing commas or weird whitespace;
+      // but we won't do unsafe transforms here.
+      return { ok: false as const, cleaned, json: null };
+    }
   }
 }
 
@@ -108,15 +114,27 @@ function normalizeOnePagerBlocks(onePagerJson: any) {
   );
 }
 
-// -------------------------------
-// Helpers: map ratio -> image size
-// GPT image models support: 1024x1024, 1536x1024, 1024x1536, or auto.
-// For 4:5 we generate portrait (1024x1536) and your UI container crops naturally.
-// -------------------------------
-function sizeForRatio(ratio: "1:1" | "9:16" | "4:5") {
+function sizeForRatio(ratio: "1:1" | "4:5" | "9:16") {
+  // Common image sizes for modern OpenAI image models.
+  // If your account/model restricts sizes, drop to 1024x1024 across the board.
   if (ratio === "1:1") return "1024x1024";
-  // both 9:16 and 4:5 are portrait-ish; we'll use portrait and crop in UI
-  return "1024x1536";
+  if (ratio === "4:5") return "1024x1280";
+  return "1024x1792"; // 9:16
+}
+
+function mapKindToFormat(kindOrFormat: string): {
+  format: "bold_text_card" | "reel_cover" | "one_pager";
+  ratio: "1:1" | "9:16" | "4:5";
+} {
+  // Your UI uses "one_pager_cover" — the agent uses "one_pager".
+  if (kindOrFormat === "one_pager_cover" || kindOrFormat === "one_pager") {
+    return { format: "one_pager", ratio: "4:5" };
+  }
+  if (kindOrFormat === "reel_cover") {
+    return { format: "reel_cover", ratio: "9:16" };
+  }
+  // default
+  return { format: "bold_text_card", ratio: "1:1" };
 }
 
 app.post("/api/content-factory", async (req, res) => {
@@ -333,53 +351,14 @@ app.post("/api/content-factory", async (req, res) => {
     }
 
     // -------------------------------
-    // ACTION 3: GENERATE DESIGN (prompt -> image)
+    // ACTION 3: GENERATE DESIGN + IMAGE
     // -------------------------------
     if (body?.action === "generate_design") {
       const run_id = body.run_id as string;
-
-      // frontend sends kind; your prompt uses "format"
-      const kind = String(body.kind ?? "").trim();
-
-      // Map UI kind -> agent format + ratio
-      // (Your agent spec only allows one_pager | bold_text_card | reel_cover)
-      let format: "one_pager" | "bold_text_card" | "reel_cover" | null = null;
-      let ratio: "1:1" | "9:16" | "4:5" = "1:1";
-
-      if (kind === "bold_text_card") {
-        format = "bold_text_card";
-        ratio = "1:1";
-      } else if (kind === "reel_cover") {
-        format = "reel_cover";
-        ratio = "9:16";
-      } else if (kind === "one_pager_cover") {
-        // Treat as one_pager-style design in 4:5 frame (cover-like)
-        format = "one_pager";
-        ratio = "4:5";
-      } else {
-        // also accept body.format directly if you decide to pass it later
-        const f = String(body.format ?? "").trim();
-        if (f === "one_pager" || f === "bold_text_card" || f === "reel_cover") {
-          format = f;
-        }
-        const r = String(body.ratio ?? "").trim();
-        if (r === "1:1" || r === "9:16" || r === "4:5") ratio = r;
-      }
-
-      const mode = (body.mode ?? "clean") as "clean" | "punchy";
-
       if (!run_id || !uuidRegex.test(run_id)) {
         return res
           .status(400)
           .json({ error: "Missing or invalid run_id (UUID required)" });
-      }
-
-      if (!format) {
-        return res.status(400).json({
-          error: "Missing or invalid kind/format",
-          supported_kind: ["bold_text_card", "reel_cover", "one_pager_cover"],
-          supported_format: ["one_pager", "bold_text_card", "reel_cover"],
-        });
       }
 
       if (!supabase) {
@@ -388,11 +367,14 @@ app.post("/api/content-factory", async (req, res) => {
           .json({ error: "Supabase not configured on API (missing env vars)" });
       }
 
-      if (!process.env.OPENAI_API_KEY) {
-        return res.status(500).json({ error: "Missing OPENAI_API_KEY on API" });
-      }
+      // UI sends kind; agent expects format
+      const kindOrFormat = String(body.format ?? body.kind ?? "");
+      const mapped = mapKindToFormat(kindOrFormat);
 
-      // Load one_pager_json to supply blocks
+      const ratio = (body.ratio ?? mapped.ratio) as "4:5" | "1:1" | "9:16";
+      const mode = (body.mode ?? "clean") as "clean" | "punchy";
+      const format = mapped.format;
+
       const { data: row, error: fetchErr } = await supabase
         .from("content_runs")
         .select("id, user_id, series, hook, target_audience, one_pager_json")
@@ -408,7 +390,6 @@ app.post("/api/content-factory", async (req, res) => {
 
       const blocks = normalizeOnePagerBlocks(row.one_pager_json).slice(0, 7);
 
-      // What we send into the agent
       const inputPayload = {
         brand: "Attract Acquisition",
         series: row.series,
@@ -420,22 +401,19 @@ app.post("/api/content-factory", async (req, res) => {
         format,
       };
 
-      const input_as_text = JSON.stringify(inputPayload, null, 2);
-
-      // 1) Ask your design agent for a prompt JSON
-      // IMPORTANT: use the workflow route name (design_agent), not AA_Design_Agent
+      // 1) Ask the design agent for a single image prompt (JSON)
       const r = await runWorkflow({
+        remember: undefined as any, // harmless if your types differ
         agent: "design_agent",
-        input_as_text,
-      });
+        input_as_text: JSON.stringify(inputPayload, null, 2),
+      } as any);
 
       const out = String(r?.output_text ?? r?.finalOutput ?? "").trim();
       const parsed = tryParseJson(out);
 
-      if (!parsed.ok || !parsed.json) {
+      if (!parsed.ok) {
         return res.status(200).json({
           run_id,
-          kind,
           format,
           ratio,
           design_json: null,
@@ -448,29 +426,42 @@ app.post("/api/content-factory", async (req, res) => {
         });
       }
 
-      const design_json = parsed.json as any;
-      const prompt = String(design_json?.prompt ?? "").trim();
+      const design_json = parsed.json;
+
+      // Accept either {prompt, ratio, format} or any object containing prompt
+      const prompt =
+        typeof design_json?.prompt === "string" ? design_json.prompt.trim() : "";
 
       if (!prompt) {
         return res.status(200).json({
           run_id,
-          kind,
           format,
           ratio,
           design_json,
           image_b64: null,
-          error: "Design JSON missing `prompt`.",
+          error: "Design JSON parsed but missing 'prompt' string.",
         });
       }
 
-      // 2) Generate image from prompt
-      // NOTE: For GPT image models, DO NOT send response_format.
-      // Use output_format instead; GPT image models always return base64.  [oai_citation:2‡OpenAI Platform](https://platform.openai.com/docs/api-reference/images?utm_source=chatgpt.com)
+      // 2) Generate an image from that prompt (NO response_format here)
+      if (!openai) {
+        return res.status(200).json({
+          run_id,
+          format,
+          ratio,
+          design_json,
+          image_b64: null,
+          error:
+            "OPENAI_API_KEY not set on the server. Set it to generate images.",
+        });
+      }
+
+      const size = sizeForRatio(ratio);
+
       const img = await openai.images.generate({
-        model: "gpt-image-1.5",
+        model: process.env.OPENAI_IMAGE_MODEL || "gpt-image-1",
         prompt,
-        n: 1,
-        size: sizeForRatio(ratio),
+        size,
         output_format: "png",
       });
 
@@ -479,22 +470,21 @@ app.post("/api/content-factory", async (req, res) => {
       if (!image_b64) {
         return res.status(200).json({
           run_id,
-          kind,
           format,
           ratio,
           design_json,
           image_b64: null,
-          error: "Image generation returned no b64_json.",
+          error: "Image API returned no base64 image.",
         });
       }
 
       return res.status(200).json({
         run_id,
-        kind,
         format,
         ratio,
         design_json,
-        image_b64, // ✅ frontend can display: data:image/png;base64,${image_b64}
+        image_b64,
+        mime: "image/png",
       });
     }
 
