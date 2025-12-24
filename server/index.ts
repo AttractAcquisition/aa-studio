@@ -27,6 +27,19 @@ app.get("/api/content-factory", (_req, res) => {
   return res.status(405).json({ error: "Use POST" });
 });
 
+app.all("/api/content-factory", (_req, res, next) => {
+  res.setHeader("Content-Type", "application/json");
+  next();
+});
+
+app.get("/api/content-factory", (_req, res) => {
+  return res.status(405).json({ error: "Use POST" });
+});
+
+app.get("/health", (_req, res) => {
+  return res.status(200).json({ ok: true });
+});
+
 app.post("/api/content-factory", async (req, res) => {
   try {
     const body = req.body as {
