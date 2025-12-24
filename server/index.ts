@@ -2,48 +2,43 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
-
-// IMPORTANT: adjust this import based on your aa-workflow export
 import { runWorkflow } from "../lib/aa-workflow";
 
 const app = express();
-app.use(cors());
+
+// ✅ CORS: allow Lovable + local dev
+app.use(
+  cors({
+    origin: [
+      "http://localhost:8080",
+      // add your Lovable deployed domain here:
+      // "https://your-app.lovable.app"
+    ],
+  })
+);
+
 app.use(express.json({ limit: "2mb" }));
-
-// ✅ Always respond with JSON for this route (prevents Express HTML error pages)
-app.all("/api/content-factory", (_req, res, next) => {
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  next();
-});
-
-// ✅ Helpful for proxy sanity tests
-app.get("/api/content-factory", (_req, res) => {
-  return res.status(405).json({ error: "Use POST" });
-});
-
-// ✅ JSON parse error handler (instead of HTML)
-app.use((err: any, _req: any, res: any, next: any) => {
-  if (err?.type === "entity.parse.failed") {
-    return res.status(400).json({ error: "Invalid JSON body" });
-  }
-  return next(err);
-});
 
 const supabase =
   process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
 
+// ✅ Always return JSON for this route (prevents HTML -> JSON parse errors)
+app.all("/api/content-factory", (_req, res, next) => {
+  res.setHeader("Content-Type", "application/json");
+  next();
+});
+
+app.get("/api/content-factory", (_req, res) => {
+  return res.status(405).json({ error: "Use POST" });
+});
+
 app.post("/api/content-factory", async (req, res) => {
   try {
     const body = req.body as {
       action: "generate_script";
-      inputs: {
-        content_type: string;
-        series: string;
-        hook?: string;
-        target_audience: string;
-      };
+      inputs: { content_type: string; series: string; hook?: string; target_audience: string };
       idempotency_key?: string;
     };
 
@@ -56,7 +51,7 @@ app.post("/api/content-factory", async (req, res) => {
 
     const { content_type, series, hook, target_audience } = body.inputs;
 
-    // (optional) create DB row
+    // 1) Create run row
     let run_id = crypto.randomUUID();
     if (supabase) {
       const { data, error } = await supabase
@@ -72,41 +67,25 @@ app.post("/api/content-factory", async (req, res) => {
         })
         .select("id")
         .single();
-
       if (error) throw error;
       run_id = data.id;
     }
 
-    // ✅ Run workflow
+    // 2) Run workflow
     const result = await runWorkflow({
       inputs: { content_type, series, hook: hook ?? "", target_audience },
     });
 
-    // ✅ DEBUG ONCE (remove later if you want)
-    console.log("WORKFLOW RESULT KEYS:", Object.keys(result || {}));
-    console.log("WORKFLOW FINAL OUTPUT:", (result as any)?.finalOutput);
-
-    // ✅ Agents SDK usually puts the final answer here
+    // ✅ Agents SDK commonly returns final output here:
     const final = (result as any)?.finalOutput;
 
-    // Support either a plain string OR an object output type
     const script_text =
       typeof final === "string"
         ? final
         : final?.script_text ?? final?.text ?? final?.script?.text ?? "";
 
-    // keep these if your workflow returns structured objects too
-    const brief_json =
-      (typeof final === "object" ? final?.brief_json ?? final?.brief : null) ??
-      (result as any)?.brief_json ??
-      (result as any)?.brief ??
-      null;
-
-    const script_json =
-      (typeof final === "object" ? final?.script_json ?? final?.script : null) ??
-      (result as any)?.script_json ??
-      (result as any)?.script ??
-      null;
+    const brief_json = (result as any)?.brief_json ?? (result as any)?.brief ?? null;
+    const script_json = (result as any)?.script_json ?? (result as any)?.script ?? final ?? null;
 
     if (!script_text) {
       if (supabase) {
@@ -114,21 +93,18 @@ app.post("/api/content-factory", async (req, res) => {
           .from("content_runs")
           .update({
             status: "FAILED",
-            last_error: "No script text returned (finalOutput empty / unexpected shape)",
+            last_error: "Workflow returned no script text (check finalOutput shape).",
           })
           .eq("id", run_id);
       }
 
       return res.status(500).json({
-        error: "Workflow returned no script text. Check runWorkflow() return shape.",
-        debug: {
-          resultKeys: Object.keys(result || {}),
-          finalOutputType: typeof final,
-          finalOutputKeys: final && typeof final === "object" ? Object.keys(final) : [],
-        },
+        error: "Workflow returned no script text.",
+        debug: { keys: Object.keys(result || {}), hasFinalOutput: Boolean((result as any)?.finalOutput) },
       });
     }
 
+    // 3) Save outputs
     if (supabase) {
       await supabase
         .from("content_runs")
@@ -143,4 +119,6 @@ app.post("/api/content-factory", async (req, res) => {
   }
 });
 
-app.listen(3001, () => console.log("API listening on http://localhost:3001"));
+// ✅ Use host-provided port in production
+const PORT = Number(process.env.PORT || 3001);
+app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}`));
