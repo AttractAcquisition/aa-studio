@@ -10,16 +10,31 @@ import {
   TrendingUp,
   Loader2,
   Trash2,
+  ClipboardCheck,
+  Phone,
+  DollarSign,
+  ArrowRight,
 } from "lucide-react";
 import { useEvents } from "@/hooks/useEvents";
 import { LogEnquiryModal } from "@/components/modals/LogEnquiryModal";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 export default function Enquiries() {
   const [searchQuery, setSearchQuery] = useState("");
   const [logModalOpen, setLogModalOpen] = useState(false);
 
-  const { enquiries, bookedCalls, conversions, isLoading, deleteEvent } = useEvents();
+  const { 
+    enquiries, 
+    bookedCalls, 
+    conversions, 
+    auditRequests,
+    isLoading, 
+    deleteEvent, 
+    createEvent,
+    conversionRates,
+    last7Days,
+  } = useEvents();
 
   const filteredEnquiries = enquiries.filter(
     (e: any) =>
@@ -35,10 +50,20 @@ export default function Enquiries() {
     (e: any) => new Date(e.occurred_at) >= today
   ).length;
 
-  const thisWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const enquiriesThisWeek = enquiries.filter(
-    (e: any) => new Date(e.occurred_at) >= thisWeek
-  ).length;
+  const handleProgressEvent = async (enquiry: any, toType: "audit_request" | "booked_call" | "conversion") => {
+    try {
+      await createEvent({
+        type: toType,
+        keyword: enquiry.keyword,
+        platform: enquiry.platform,
+        notes: `Progressed from enquiry: ${enquiry.keyword}`,
+        related_event_id: enquiry.id,
+      });
+      toast.success(`Marked as ${toType.replace("_", " ")}`);
+    } catch (error) {
+      toast.error("Failed to update");
+    }
+  };
 
   return (
     <AppLayout>
@@ -61,20 +86,22 @@ export default function Enquiries() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-6 mb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
           <div className="aa-card text-center">
             <div className="w-12 h-12 rounded-2xl bg-primary/10 mx-auto mb-3 flex items-center justify-center">
               <MessageSquare className="w-6 h-6 text-primary" />
             </div>
             <p className="text-3xl font-black text-foreground">{enquiries.length}</p>
             <p className="text-sm text-muted-foreground">Total Enquiries</p>
+            <p className="text-xs text-primary mt-1">{last7Days.enquiries} last 7 days</p>
           </div>
           <div className="aa-card text-center">
             <div className="w-12 h-12 rounded-2xl bg-primary/10 mx-auto mb-3 flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-primary" />
+              <ClipboardCheck className="w-6 h-6 text-primary" />
             </div>
-            <p className="text-3xl font-black text-foreground">{enquiriesToday}</p>
-            <p className="text-sm text-muted-foreground">Today</p>
+            <p className="text-3xl font-black text-foreground">{auditRequests.length}</p>
+            <p className="text-sm text-muted-foreground">Audit Requests</p>
+            <p className="text-xs text-primary mt-1">{conversionRates.auditRequestRate}% rate</p>
           </div>
           <div className="aa-card text-center">
             <div className="w-12 h-12 rounded-2xl bg-primary/10 mx-auto mb-3 flex items-center justify-center">
@@ -82,6 +109,7 @@ export default function Enquiries() {
             </div>
             <p className="text-3xl font-black text-foreground">{bookedCalls.length}</p>
             <p className="text-sm text-muted-foreground">Booked Calls</p>
+            <p className="text-xs text-primary mt-1">{conversionRates.bookedCallRate}% rate</p>
           </div>
           <div className="aa-card text-center">
             <div className="w-12 h-12 rounded-2xl bg-green-500/10 mx-auto mb-3 flex items-center justify-center">
@@ -89,6 +117,7 @@ export default function Enquiries() {
             </div>
             <p className="text-3xl font-black text-foreground">{conversions.length}</p>
             <p className="text-sm text-muted-foreground">Conversions</p>
+            <p className="text-xs text-green-500 mt-1">{conversionRates.conversionRate}% rate</p>
           </div>
         </div>
 
@@ -142,6 +171,41 @@ export default function Enquiries() {
                       </p>
                     )}
                   </div>
+                  
+                  {/* Funnel Progress Buttons */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => handleProgressEvent(enquiry, "audit_request")}
+                      title="Mark as Audit Requested"
+                    >
+                      <ClipboardCheck className="w-4 h-4 mr-1" />
+                      Audit
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => handleProgressEvent(enquiry, "booked_call")}
+                      title="Mark as Booked Call"
+                    >
+                      <Phone className="w-4 h-4 mr-1" />
+                      Call
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-green-600 hover:text-green-700"
+                      onClick={() => handleProgressEvent(enquiry, "conversion")}
+                      title="Mark as Converted"
+                    >
+                      <DollarSign className="w-4 h-4 mr-1" />
+                      Won
+                    </Button>
+                  </div>
+
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-muted-foreground">
                       {format(new Date(enquiry.occurred_at), "MMM d, h:mm a")}

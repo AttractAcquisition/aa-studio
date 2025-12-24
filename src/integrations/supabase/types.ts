@@ -284,6 +284,7 @@ export type Database = {
           occurred_at: string
           platform: string | null
           post_id: string | null
+          related_event_id: string | null
           type: string
           user_id: string
           value: number | null
@@ -296,6 +297,7 @@ export type Database = {
           occurred_at?: string
           platform?: string | null
           post_id?: string | null
+          related_event_id?: string | null
           type: string
           user_id: string
           value?: number | null
@@ -308,6 +310,7 @@ export type Database = {
           occurred_at?: string
           platform?: string | null
           post_id?: string | null
+          related_event_id?: string | null
           type?: string
           user_id?: string
           value?: number | null
@@ -318,6 +321,13 @@ export type Database = {
             columns: ["post_id"]
             isOneToOne: false
             referencedRelation: "scheduled_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_related_event_id_fkey"
+            columns: ["related_event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
