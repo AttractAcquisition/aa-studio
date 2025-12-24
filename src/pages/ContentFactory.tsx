@@ -23,6 +23,7 @@ import {
   Wand2,
   RefreshCw,
   Download,
+  ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTemplates } from "@/hooks/useTemplates";
@@ -32,7 +33,7 @@ import { uploadBlobToBucket, createAssetRow } from "@/lib/supabase-helpers";
 import { useAuth } from "@/hooks/useAuth";
 import html2canvas from "html2canvas";
 
-// ✅ NEW: document-style one-pager component (white page layout)
+// ✅ Proper one-pager document layout
 import { AaOnePagerDocument } from "@/components/onepager/AaOnePagerDocument";
 
 const contentTypes = [
@@ -59,34 +60,11 @@ const steps = [
   { id: 4, title: "Design", icon: Image },
 ];
 
-// ✅ Still used for local One-Pager mock until you wire that webhook later
-const generateOnePagerBlocks = (script: string) => {
-  const sentences = script.split(/[.!?]+/).filter((s) => s.trim().length > 10);
-  const blocks = [];
-
-  for (let i = 0; i < Math.min(5, sentences.length); i++) {
-    blocks.push({
-      id: i + 1,
-      title: `Beat ${i + 1}`,
-      content:
-        sentences[i * Math.floor(sentences.length / 5)]?.trim() ||
-        `Key point ${i + 1}`,
-      details: "",
-    });
-  }
-
-  return blocks;
-};
-
 type GenerateScriptResponse = {
   run_id: string;
-
-  // possible shapes:
   script_text?: string;
   script?: { text?: string };
   output?: { script?: { text?: string } };
-
-  // optional extras
   brief?: any;
   brief_json?: any;
   script_json?: any;
@@ -94,21 +72,29 @@ type GenerateScriptResponse = {
 
 type GenerateOnePagerResponse = {
   run_id: string;
-  one_pager_json?: any; // JSON your agent returns
-  one_pager_text?: string; // raw text (often JSON string)
+  one_pager_json?: any;
+  one_pager_text?: string;
   error?: string;
   debug?: any;
 };
 
+function escapeHtml(s: string) {
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export default function ContentFactory() {
-  const { user, session } = useAuth() as any; // ✅ session optional (depends on your hook)
+  const { user, session } = useAuth() as any;
   const { toast } = useToast();
   const { templates } = useTemplates();
   const { createExport } = useExports();
 
   const [currentStep, setCurrentStep] = useState(1);
 
-  // NOTE: this holds your NEW content_runs.id (run_id)
+  // content_runs.id (run_id)
   const [contentItemId, setContentItemId] = useState<string | null>(null);
 
   const [contentType, setContentType] = useState("");
@@ -123,20 +109,22 @@ export default function ContentFactory() {
   const [onePagerBlocks, setOnePagerBlocks] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [selectedFormat, setSelectedFormat] = useState("4:5");
+
+  // Step 3: document ref (export + screenshot)
+  const onePagerDocRef = useRef<HTMLDivElement>(null);
+
+  // Step 4: design ref (existing export)
   const designRef = useRef<HTMLDivElement>(null);
 
-  // ✅ AA shortform target: 140–160 words
+  // Script word target
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
   const isWordCountValid = wordCount >= 140 && wordCount <= 160;
   const estSeconds = Math.round(wordCount * 0.4);
 
-  // ❌ Disable autosave for now (old hooks would write to old tables and break)
   useEffect(() => {
     return;
   }, []);
 
-  // ✅ Point this at YOUR server API route.
-  // That API route imports lib/aa-workflow.ts and runs the Agent workflow.
   const CONTENT_FACTORY_WEBHOOK =
     import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
 
@@ -180,11 +168,8 @@ export default function ContentFactory() {
         "Content-Type": "application/json",
       };
 
-      // ✅ Preferred: bearer token if your API route validates Supabase auth
       const accessToken = session?.access_token;
       if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-
-      // ✅ Fallback: x-user-id if your API still expects it
       if (user?.id) headers["x-user-id"] = user.id;
 
       const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
@@ -200,22 +185,20 @@ export default function ContentFactory() {
 
       const data = (await res.json()) as GenerateScriptResponse;
 
-      // Save run_id for next steps (one-pager/design will fetch this later)
       setContentItemId(data.run_id);
 
-      // ✅ Support multiple response shapes
       const scriptText =
         data.script_text ?? data.script?.text ?? data.output?.script?.text ?? "";
 
       if (!scriptText) {
         throw new Error(
-          "Webhook returned no script text. Ensure your /api/content-factory returns { run_id, script_text } or { run_id, script: { text } }."
+          "Webhook returned no script text. Ensure your API returns { run_id, script_text }."
         );
       }
 
       setScript(scriptText);
-
       setCurrentStep(2);
+
       toast({
         title: "Script generated!",
         description: "Your AI script is ready. Edit as needed.",
@@ -231,7 +214,6 @@ export default function ContentFactory() {
     }
   };
 
-  // ✅ NOW WIRED: One-pager via API (replaces local mock)
   const handleGenerateOnePager = async () => {
     if (!user) {
       toast({
@@ -269,7 +251,6 @@ export default function ContentFactory() {
 
       const accessToken = session?.access_token;
       if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-
       if (user?.id) headers["x-user-id"] = user.id;
 
       const res = await fetch(CONTENT_FACTORY_WEBHOOK, {
@@ -284,19 +265,12 @@ export default function ContentFactory() {
       }
 
       const data = (await res.json()) as GenerateOnePagerResponse;
-
       const opj = data.one_pager_json;
 
-      // ✅ Normalize to your existing UI blocks shape: [{id,title,content,details}]
       let blocks: any[] = [];
-
-      if (Array.isArray(opj)) {
-        blocks = opj;
-      } else if (opj?.blocks && Array.isArray(opj.blocks)) {
-        blocks = opj.blocks;
-      } else if (opj?.sections && Array.isArray(opj.sections)) {
-        blocks = opj.sections;
-      }
+      if (Array.isArray(opj)) blocks = opj;
+      else if (opj?.blocks && Array.isArray(opj.blocks)) blocks = opj.blocks;
+      else if (opj?.sections && Array.isArray(opj.sections)) blocks = opj.sections;
 
       blocks = blocks.map((b, idx) => ({
         id: b.id ?? idx + 1,
@@ -307,7 +281,7 @@ export default function ContentFactory() {
 
       if (!blocks.length) {
         throw new Error(
-          "One-pager returned no blocks. Ensure the one_pager_agent returns JSON with { blocks: [...] }."
+          "One-pager returned no blocks. Ensure one_pager_agent returns JSON with { blocks: [...] }."
         );
       }
 
@@ -316,14 +290,9 @@ export default function ContentFactory() {
 
       toast({
         title: "One-Pager generated!",
-        description: "Your one-pager is ready. Edit blocks if needed.",
+        description: "Preview is ready.",
       });
     } catch (error: any) {
-      // Optional fallback to local mock:
-      // const fallback = generateOnePagerBlocks(script);
-      // setOnePagerBlocks(fallback);
-      // setCurrentStep(3);
-
       toast({
         title: "Error",
         description: error.message || "Failed to generate one-pager",
@@ -334,19 +303,175 @@ export default function ContentFactory() {
     }
   };
 
-  const handleSaveOnePager = async () => {
-    toast({
-      title: "Not wired yet",
-      description:
-        "Save One-Pager will be connected to the one_pager_agent + Supabase next.",
-    });
+  // ✅ Step 3: Export the doc preview to PNG (local download)
+  const handleExportOnePagerPng = async () => {
+    if (!onePagerDocRef.current) {
+      toast({
+        title: "Nothing to export",
+        description: "Generate the one-pager first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const canvas = await html2canvas(onePagerDocRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+      });
+
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b!), "image/png", 0.95);
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `aa_one_pager_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Exported",
+        description: "Downloaded your one-pager PNG.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Export failed",
+        description: e?.message || "Could not export PNG.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const handleGenerateDesigns = () => {
-    setCurrentStep(4);
+  // ✅ Step 3: Open a clean document view in a new tab (includes Print/PDF)
+  const handleViewInNewTab = () => {
+    if (!onePagerBlocks?.length) {
+      toast({
+        title: "Nothing to view",
+        description: "Generate the one-pager first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const blocksHtml = onePagerBlocks
+      .slice(0, 7)
+      .map((b: any, idx: number) => {
+        return `
+          <div class="card">
+            <div class="cardTitle">
+              <div class="badge">${idx + 1}</div>
+              <div class="h">${escapeHtml(b.title || `Section ${idx + 1}`)}</div>
+            </div>
+            ${b.content ? `<div class="p">${escapeHtml(b.content)}</div>` : ""}
+            ${b.details ? `<div class="muted">${escapeHtml(b.details)}</div>` : ""}
+          </div>
+        `;
+      })
+      .join("");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>${escapeHtml(hook?.trim() ? hook.trim() : "AA One-Pager")}</title>
+  <style>
+    body{margin:0;background:#0B0F19;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
+    .wrap{max-width:860px;margin:32px auto;padding:0 16px;}
+    .paper{background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.35);border:1px solid rgba(0,0,0,.08);}
+    .top{background:#6A00F4;color:#fff;padding:26px 28px;}
+    .kicker{letter-spacing:.18em;text-transform:uppercase;font-size:11px;color:rgba(255,255,255,.8)}
+    .title{font-size:30px;line-height:1.1;margin:10px 0 0;font-weight:700}
+    .sub{margin-top:10px;font-size:12px;color:rgba(255,255,255,.8)}
+    .aa{width:44px;height:44px;border-radius:12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:800}
+    .row{display:flex;gap:16px;align-items:flex-start;justify-content:space-between}
+    .body{padding:22px 28px;}
+    .meta{display:flex;gap:8px;align-items:center;justify-content:space-between;color:rgba(0,0,0,.55);font-size:12px}
+    .pill{display:inline-flex;align-items:center;height:24px;border-radius:999px;background:rgba(0,0,0,.05);padding:0 10px}
+    .how{margin-top:14px;background:#F6F1FF;border:1px solid rgba(0,0,0,.10);border-radius:16px;padding:16px}
+    .howH{font-weight:700;font-size:14px;margin-bottom:6px}
+    .howP{font-size:13px;line-height:1.5;color:rgba(0,0,0,.72)}
+    .cards{margin-top:16px;display:grid;grid-template-columns:1fr;gap:12px}
+    .card{border:1px solid rgba(0,0,0,.10);border-radius:16px;padding:14px}
+    .cardTitle{display:flex;gap:10px;align-items:center}
+    .badge{width:28px;height:28px;border-radius:10px;background:rgba(106,0,244,.10);border:1px solid rgba(106,0,244,.20);display:flex;align-items:center;justify-content:center;color:#6A00F4;font-weight:800;font-size:12px}
+    .h{font-weight:700}
+    .p{margin-top:10px;font-size:13px;line-height:1.55;color:rgba(0,0,0,.72);white-space:pre-wrap}
+    .muted{margin-top:10px;font-size:12px;line-height:1.5;color:rgba(0,0,0,.55);white-space:pre-wrap}
+    .footer{margin-top:14px;display:flex;justify-content:space-between;font-size:11px;color:rgba(0,0,0,.45)}
+    .btns{margin:14px 0 0;display:flex;gap:10px}
+    .btn{border:0;border-radius:12px;padding:10px 12px;cursor:pointer;font-weight:700}
+    .btnPrimary{background:#6A00F4;color:#fff}
+    .btnGhost{background:rgba(255,255,255,.10);color:#fff;border:1px solid rgba(255,255,255,.18)}
+    @media print{
+      body{background:#fff}
+      .wrap{margin:0;max-width:none}
+      .btns{display:none}
+      .paper{box-shadow:none;border:none}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="btns">
+      <button class="btn btnPrimary" onclick="window.print()">Print / Save as PDF</button>
+      <button class="btn btnGhost" onclick="window.close()">Close</button>
+    </div>
+
+    <div class="paper">
+      <div class="top">
+        <div class="row">
+          <div>
+            <div class="kicker">Attract Acquisition • ${escapeHtml(series || "Series")}</div>
+            <div class="title">${escapeHtml(hook?.trim() ? hook.trim() : "One-Pager")}</div>
+            <div class="sub">Audience: <b style="color:#fff">${escapeHtml(audience)}</b></div>
+          </div>
+          <div class="aa">AA</div>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="meta">
+          <div style="display:flex;gap:8px;align-items:center">
+            <span class="pill">One page</span>
+            <span class="pill">Generated</span>
+          </div>
+          <div>aa-brand-studio</div>
+        </div>
+
+        <div class="how">
+          <div class="howH">How to use this one-pager</div>
+          <div class="howP">Read top-to-bottom. Use it as a checklist while scripting. Then convert it into a clean reel/carousel with a single outcome.</div>
+        </div>
+
+        <div class="cards">
+          ${blocksHtml}
+        </div>
+
+        <div class="footer">
+          <div>Attract Acquisition</div>
+          <div>Content Factory</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    const w = window.open("", "_blank", "noopener,noreferrer");
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
   };
 
-  // Leaving your export logic as-is for now
+  const handleGenerateDesigns = () => setCurrentStep(4);
+
+  // Step 4 export (kept from your current system)
   const handleSaveAndExport = async () => {
     if (!user || !designRef.current) {
       toast({
@@ -360,9 +485,8 @@ export default function ContentFactory() {
     setIsSaving(true);
 
     try {
-      // ✅ Export as a "real document": white background
       const canvas = await html2canvas(designRef.current, {
-        backgroundColor: "#ffffff",
+        backgroundColor: "#0B0F19",
         scale: 2,
       });
 
@@ -401,11 +525,9 @@ export default function ContentFactory() {
 
       toast({
         title: "Export saved!",
-        description:
-          "Design exported. We'll wire Save & Export All into asset_vault later.",
+        description: "Design exported.",
       });
 
-      // Reset form
       setCurrentStep(1);
       setContentItemId(null);
       setContentType("");
@@ -425,12 +547,6 @@ export default function ContentFactory() {
     }
   };
 
-  const updateBlock = (blockId: number, field: string, value: string) => {
-    setOnePagerBlocks((blocks) =>
-      blocks.map((b) => (b.id === blockId ? { ...b, [field]: value } : b))
-    );
-  };
-
   return (
     <AppLayout>
       <div className="animate-fade-in max-w-5xl mx-auto">
@@ -445,7 +561,7 @@ export default function ContentFactory() {
           </p>
         </div>
 
-        {/* Progress Steps */}
+        {/* Progress */}
         <div className="flex items-center justify-between mb-10 px-4">
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
@@ -483,9 +599,8 @@ export default function ContentFactory() {
           ))}
         </div>
 
-        {/* Step Content */}
         <div className="aa-card">
-          {/* Step 1: Input */}
+          {/* Step 1 */}
           {currentStep === 1 && (
             <div className="space-y-6">
               <div>
@@ -582,7 +697,7 @@ export default function ContentFactory() {
             </div>
           )}
 
-          {/* Step 2: Script */}
+          {/* Step 2 */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="flex items-start justify-between">
@@ -624,20 +739,6 @@ export default function ContentFactory() {
                 placeholder="Your script will appear here..."
               />
 
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateScript}
-                  disabled={isGenerating}
-                >
-                  <RefreshCw
-                    className={cn("w-4 h-4 mr-2", isGenerating && "animate-spin")}
-                  />
-                  Regenerate
-                </Button>
-              </div>
-
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -665,122 +766,104 @@ export default function ContentFactory() {
             </div>
           )}
 
-         {/* Step 3: One-Pager */}
-{currentStep === 3 && (
-  <div className="space-y-6">
-    <div className="flex items-start justify-between">
-      <div>
-        <h2 className="aa-headline-md text-foreground mb-2">One-Pager Builder</h2>
-        <p className="text-muted-foreground">
-          Edit the beats on the left. Your one-pager document preview updates live on the right.
-        </p>
-      </div>
-
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleSaveOnePager}
-        disabled={isGenerating || !onePagerBlocks?.length}
-      >
-        <Download className="w-4 h-4 mr-2" />
-        Save One-Pager
-      </Button>
-    </div>
-
-    {!onePagerBlocks?.length ? (
-      <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
-        No one-pager blocks yet. Go back and click “Generate One-Pager”.
-      </div>
-    ) : (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* LEFT: editor */}
-        <div className="space-y-4">
-          {onePagerBlocks.map((block) => (
-            <div
-              key={block.id}
-              className="rounded-2xl border border-border/40 bg-card/50 p-5"
-            >
-              <div className="grid grid-cols-1 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Title</Label>
-                  <Input
-                    value={block.title}
-                    onChange={(e) => updateBlock(block.id, "title", e.target.value)}
-                    className="h-11"
-                  />
+          {/* Step 3 (preview only) */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    One-Pager Preview
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Only the generated document is shown (no block editing).
+                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Main content</Label>
-                  <Textarea
-                    value={block.content}
-                    onChange={(e) => updateBlock(block.id, "content", e.target.value)}
-                    className="min-h-[110px] text-base leading-relaxed"
-                  />
-                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleViewInNewTab}
+                    disabled={!onePagerBlocks?.length}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    View in new tab
+                  </Button>
 
-                <div className="space-y-2">
-                  <Label className="text-muted-foreground">Details (optional)</Label>
-                  <Textarea
-                    value={block.details || ""}
-                    onChange={(e) => updateBlock(block.id, "details", e.target.value)}
-                    className="min-h-[80px]"
-                    placeholder="Examples, checklist items, micro-steps…"
-                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportOnePagerPng}
+                    disabled={!onePagerBlocks?.length}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export PNG
+                  </Button>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
 
-        {/* RIGHT: live document preview (like your 2nd image) */}
-        <div className="space-y-3">
-          <div className="text-sm text-muted-foreground">Live preview</div>
+              {!onePagerBlocks?.length ? (
+                <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
+                  No one-pager yet. Go back and click “Generate One-Pager”.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                  <div className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      Document preview
+                    </div>
 
-          <div className="w-full flex items-center justify-center rounded-3xl border border-border/40 bg-[#0B0F19] p-6">
-            {/* A4 aspect “page” */}
-            <div className="w-full max-w-[520px] aspect-[210/297]">
-              <div className="w-full h-full rounded-2xl overflow-hidden">
-                <AaOnePagerDocument
-                  series={series}
-                  hook={hook}
-                  audience={audience}
-                  blocks={onePagerBlocks}
-                />
+                    <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
+                      <div ref={onePagerDocRef}>
+                        <AaOnePagerDocument
+                          brand="Attract Acquisition"
+                          series={series}
+                          title={hook?.trim() ? hook.trim() : "One-Pager"}
+                          audience={audience}
+                          blocks={onePagerBlocks}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
+                      <div className="font-semibold mb-2">Script (reference)</div>
+                      <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-[520px] overflow-auto">
+                        {script || "No script loaded."}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
+                      <div className="font-semibold mb-2">Next</div>
+                      <div className="text-sm text-muted-foreground">
+                        When you’re happy, generate the design assets (IG formats).
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleGenerateDesigns}
+                  disabled={isGenerating || !onePagerBlocks?.length}
+                >
+                  Generate Designs
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="rounded-2xl border border-border/40 bg-card/50 p-4">
-            <div className="font-semibold mb-2">Script (reference)</div>
-            <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-[260px] overflow-auto">
-              {script || "No script loaded."}
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
-
-    <div className="flex justify-between pt-4">
-      <Button variant="outline" onClick={() => setCurrentStep(2)}>
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back
-      </Button>
-
-      <Button
-        variant="gradient"
-        size="lg"
-        onClick={handleGenerateDesigns}
-        disabled={isGenerating || !onePagerBlocks?.length}
-      >
-        Generate Designs
-        <ArrowRight className="w-4 h-4 ml-2" />
-      </Button>
-    </div>
-  </div>
-)}
-          
-          {/* Step 4: Design */}
+          {/* Step 4 (kept as-is) */}
           {currentStep === 4 && (
             <div className="space-y-6">
               <div className="flex items-start justify-between">
@@ -850,7 +933,6 @@ export default function ContentFactory() {
                       <SelectItem value="4:5">4:5 (IG Feed)</SelectItem>
                       <SelectItem value="1:1">1:1 (Square)</SelectItem>
                       <SelectItem value="9:16">9:16 (Reels Cover)</SelectItem>
-                      <SelectItem value="a4">A4 (Document)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -864,14 +946,12 @@ export default function ContentFactory() {
                       onClick={() => setCurrentStep(3)}
                     >
                       <ArrowLeft className="w-4 h-4 mr-2" />
-                      Edit One-Pager
+                      Back to One-Pager
                     </Button>
                     <Button
                       variant="outline"
                       className="flex-1"
-                      onClick={() => {
-                        setSelectedTemplate((prev) => prev ?? "default");
-                      }}
+                      onClick={() => setSelectedTemplate((prev) => prev ?? "default")}
                     >
                       <RefreshCw className="w-4 h-4 mr-2" />
                       Refresh
@@ -892,22 +972,72 @@ export default function ContentFactory() {
                       "w-full flex items-center justify-center rounded-3xl border border-border/40 bg-[#0B0F19] p-6",
                       selectedFormat === "4:5" && "aspect-[4/5]",
                       selectedFormat === "1:1" && "aspect-square",
-                      selectedFormat === "9:16" && "aspect-[9/16]",
-                      selectedFormat === "a4" && "aspect-[210/297]"
+                      selectedFormat === "9:16" && "aspect-[9/16]"
                     )}
                   >
-                    <div ref={designRef} className="w-full h-full rounded-3xl overflow-hidden">
-                      <AaOnePagerDocument
-                        series={series}
-                        hook={hook}
-                        audience={audience}
-                        blocks={onePagerBlocks}
-                      />
+                    <div
+                      ref={designRef}
+                      className="w-full h-full rounded-3xl overflow-hidden border border-white/5"
+                    >
+                      <div className="h-full w-full p-8 bg-[#0B0F19] text-white flex flex-col">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-xs tracking-widest uppercase text-white/60">
+                              Attract Acquisition • {series || "Series"}
+                            </div>
+                            <div className="mt-2 text-3xl font-semibold leading-tight">
+                              {hook?.trim() ? hook.trim() : "One-Pager"}
+                            </div>
+                            <div className="mt-2 text-sm text-white/60">
+                              Audience: {audience}
+                            </div>
+                          </div>
+
+                          <div className="shrink-0">
+                            <div className="w-12 h-12 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                              AA
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 grid grid-cols-1 gap-4">
+                          {onePagerBlocks.slice(0, 5).map((b, idx) => (
+                            <div
+                              key={b.id ?? idx}
+                              className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                            >
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className="w-7 h-7 rounded-xl bg-[#6A00F4]/90 flex items-center justify-center text-xs font-bold">
+                                  {idx + 1}
+                                </div>
+                                <div className="font-semibold">{b.title}</div>
+                              </div>
+
+                              <div className="text-sm leading-relaxed text-white/90 whitespace-pre-wrap">
+                                {b.content}
+                              </div>
+
+                              {b.details?.trim() ? (
+                                <div className="mt-3 text-xs text-white/60 whitespace-pre-wrap">
+                                  {b.details}
+                                </div>
+                              ) : null}
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-auto pt-6 flex items-center justify-between text-xs text-white/50">
+                          <div>
+                            Template: {selectedTemplate ?? "default"} • Format:{" "}
+                            {selectedFormat}
+                          </div>
+                          <div className="text-white/60">aa-brand-studio</div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Right panel: script + notes */}
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
                     <div className="font-semibold mb-2">Script (reference)</div>
@@ -919,12 +1049,8 @@ export default function ContentFactory() {
                   <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
                     <div className="font-semibold mb-2">What’s next</div>
                     <div className="text-sm text-muted-foreground">
-                      Next we’ll wire the{" "}
-                      <span className="text-foreground">one_pager_agent</span> to
-                      output structured JSON (blocks + layout hints), then the{" "}
-                      <span className="text-foreground">design_agent</span> to pick
-                      a template + generate style tokens (typography, spacing,
-                      emphasis).
+                      Next we’ll wire the design_agent to pick a template + generate
+                      style tokens.
                     </div>
                   </div>
                 </div>
