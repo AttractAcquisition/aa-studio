@@ -766,102 +766,82 @@ export default function ContentFactory() {
             </div>
           )}
 
-          {/* Step 3 (preview only) */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="aa-headline-md text-foreground mb-2">
-                    One-Pager Preview
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Only the generated document is shown (no block editing).
-                  </p>
-                </div>
+{/* Step 3 */}
+{currentStep === 3 && (
+  <div className="space-y-6">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h2 className="aa-headline-md text-foreground mb-2">
+          One-Pager Preview
+        </h2>
+        <p className="text-muted-foreground">
+          Only the generated document is shown (no block editing).
+        </p>
+      </div>
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleViewInNewTab}
-                    disabled={!onePagerBlocks?.length}
-                  >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View in new tab
-                  </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleViewInNewTab}
+          disabled={!onePagerBlocks?.length}
+        >
+          <ExternalLink className="w-4 h-4 mr-2" />
+          View in new tab
+        </Button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportOnePagerPng}
-                    disabled={!onePagerBlocks?.length}
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Export PNG
-                  </Button>
-                </div>
-              </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleExportOnePagerPng}
+          disabled={!onePagerBlocks?.length}
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Export PNG
+        </Button>
+      </div>
+    </div>
 
-              {!onePagerBlocks?.length ? (
-                <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
-                  No one-pager yet. Go back and click “Generate One-Pager”.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                  <div className="space-y-3">
-                    <div className="text-sm text-muted-foreground">
-                      Document preview
-                    </div>
+    {!onePagerBlocks?.length ? (
+      <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
+        No one-pager yet. Go back and click “Generate One-Pager”.
+      </div>
+    ) : (
+      <div className="space-y-3">
+        <div className="text-sm text-muted-foreground">Document preview</div>
 
-                    <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
-                      <div ref={onePagerDocRef}>
-                        <AaOnePagerDocument
-                          brand="Attract Acquisition"
-                          series={series}
-                          title={hook?.trim() ? hook.trim() : "One-Pager"}
-                          audience={audience}
-                          blocks={onePagerBlocks}
-                        />
-                      </div>
-                    </div>
-                  </div>
+        <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
+          <div ref={onePagerDocRef}>
+            <AaOnePagerDocument
+              brand="Attract Acquisition"
+              series={series}
+              title={hook?.trim() ? hook.trim() : "One-Pager"}
+              audience={audience}
+              blocks={onePagerBlocks}
+            />
+          </div>
+        </div>
+      </div>
+    )}
 
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
-                      <div className="font-semibold mb-2">Script (reference)</div>
-                      <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-[520px] overflow-auto">
-                        {script || "No script loaded."}
-                      </div>
-                    </div>
+    <div className="flex justify-between pt-4">
+      <Button variant="outline" onClick={() => setCurrentStep(2)}>
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back
+      </Button>
 
-                    <div className="rounded-2xl border border-border/40 bg-card/50 p-5">
-                      <div className="font-semibold mb-2">Next</div>
-                      <div className="text-sm text-muted-foreground">
-                        When you’re happy, generate the design assets (IG formats).
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-
-                <Button
-                  variant="gradient"
-                  size="lg"
-                  onClick={handleGenerateDesigns}
-                  disabled={isGenerating || !onePagerBlocks?.length}
-                >
-                  Generate Designs
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
-              </div>
-            </div>
-          )}
+      <Button
+        variant="gradient"
+        size="lg"
+        onClick={handleGenerateDesigns}
+        disabled={isGenerating || !onePagerBlocks?.length}
+      >
+        Generate Designs
+        <ArrowRight className="w-4 h-4 ml-2" />
+      </Button>
+    </div>
+  </div>
+)}
 
           {/* Step 4 (kept as-is) */}
           {currentStep === 4 && (
