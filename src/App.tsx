@@ -15,6 +15,7 @@ import Exports from "./pages/Exports";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
+
 const queryClient = new QueryClient();
 
 const App = () => (
