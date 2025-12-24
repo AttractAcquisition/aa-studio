@@ -15,7 +15,7 @@ export function useScheduledPosts() {
         .from("scheduled_posts")
         .select(`
           *,
-          content_item:content_items(*)
+          content_item:content_runs(*)
         `)
         .eq("user_id", user.id)
         .order("scheduled_for", { ascending: true });
@@ -33,6 +33,7 @@ export function useScheduledPosts() {
       scheduled_for,
       platform,
       content_item_id,
+      proof_card_id,
       notes,
     }: {
       title: string;
@@ -40,6 +41,7 @@ export function useScheduledPosts() {
       scheduled_for: string;
       platform?: string;
       content_item_id?: string;
+      proof_card_id?: string;
       notes?: string;
     }) => {
       if (!user) throw new Error("Not authenticated");
@@ -53,6 +55,7 @@ export function useScheduledPosts() {
           scheduled_for,
           platform: platform || "instagram",
           content_item_id,
+          proof_card_id,
           notes,
           status: "scheduled",
         })

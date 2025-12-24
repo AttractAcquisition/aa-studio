@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { TemplateCard } from "@/components/templates/TemplateCard";
 import { ReelCoverPreview } from "@/components/templates/ReelCoverPreview";
@@ -7,6 +8,7 @@ import { ProofCardPreview } from "@/components/templates/ProofCardPreview";
 import { CarouselPreview } from "@/components/templates/CarouselPreview";
 import { OnePagerPreview } from "@/components/templates/OnePagerPreview";
 import { AuditOverlayPreview } from "@/components/templates/AuditOverlayPreview";
+import { TemplatePreviewModal } from "@/components/modals/TemplatePreviewModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -50,10 +52,12 @@ const formatOptions = ["9:16", "4:5", "1:1", "16:9"];
 
 export default function TemplateLibrary() {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { templates, isLoading, createTemplate, isCreating } = useTemplates();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<any>(null);
   const [newTemplate, setNewTemplate] = useState({
     key: "",
     name: "",
@@ -213,6 +217,18 @@ export default function TemplateLibrary() {
                   description={template.description || "Custom template"}
                   formats={template.formats || []}
                   preview={getTemplatePreview(template)}
+                  onPreview={() => setPreviewTemplate(template)}
+                  onEdit={() => {
+                    if (template.is_system) {
+                      toast({
+                        title: "System template",
+                        description: "System templates cannot be edited. Create a copy instead.",
+                        variant: "destructive",
+                      });
+                    } else {
+                      navigate(`/templates/${template.id}/edit`);
+                    }
+                  }}
                 />
               </div>
             ))}
@@ -346,6 +362,14 @@ export default function TemplateLibrary() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Template Preview Modal */}
+      <TemplatePreviewModal
+        open={!!previewTemplate}
+        onOpenChange={(open) => !open && setPreviewTemplate(null)}
+        template={previewTemplate}
+        previewComponent={previewTemplate ? getTemplatePreview(previewTemplate) : undefined}
+      />
     </AppLayout>
   );
 }
