@@ -169,6 +169,69 @@ export type Database = {
         }
         Relationships: []
       }
+      content_runs: {
+        Row: {
+          brief_json: Json | null
+          content_type: string
+          created_at: string
+          hook: string | null
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          one_pager_error: string | null
+          one_pager_json: Json | null
+          one_pager_status: string | null
+          one_pager_text: string | null
+          script_json: Json | null
+          script_text: string | null
+          series: string
+          status: string
+          target_audience: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          brief_json?: Json | null
+          content_type: string
+          created_at?: string
+          hook?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error?: string | null
+          one_pager_error?: string | null
+          one_pager_json?: Json | null
+          one_pager_status?: string | null
+          one_pager_text?: string | null
+          script_json?: Json | null
+          script_text?: string | null
+          series: string
+          status?: string
+          target_audience: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          brief_json?: Json | null
+          content_type?: string
+          created_at?: string
+          hook?: string | null
+          id?: string
+          idempotency_key?: string | null
+          last_error?: string | null
+          one_pager_error?: string | null
+          one_pager_json?: Json | null
+          one_pager_status?: string | null
+          one_pager_text?: string | null
+          script_json?: Json | null
+          script_text?: string | null
+          series?: string
+          status?: string
+          target_audience?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       designs: {
         Row: {
           content_item_id: string
