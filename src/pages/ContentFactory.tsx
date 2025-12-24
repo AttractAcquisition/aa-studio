@@ -665,103 +665,121 @@ export default function ContentFactory() {
             </div>
           )}
 
-          {/* Step 3: One-Pager */}
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="aa-headline-md text-foreground mb-2">
-                    One-Pager Builder
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Edit the beats. These will be used to generate the final
-                    design.
-                  </p>
+         {/* Step 3: One-Pager */}
+{currentStep === 3 && (
+  <div className="space-y-6">
+    <div className="flex items-start justify-between">
+      <div>
+        <h2 className="aa-headline-md text-foreground mb-2">One-Pager Builder</h2>
+        <p className="text-muted-foreground">
+          Edit the beats on the left. Your one-pager document preview updates live on the right.
+        </p>
+      </div>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleSaveOnePager}
+        disabled={isGenerating || !onePagerBlocks?.length}
+      >
+        <Download className="w-4 h-4 mr-2" />
+        Save One-Pager
+      </Button>
+    </div>
+
+    {!onePagerBlocks?.length ? (
+      <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
+        No one-pager blocks yet. Go back and click “Generate One-Pager”.
+      </div>
+    ) : (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* LEFT: editor */}
+        <div className="space-y-4">
+          {onePagerBlocks.map((block) => (
+            <div
+              key={block.id}
+              className="rounded-2xl border border-border/40 bg-card/50 p-5"
+            >
+              <div className="grid grid-cols-1 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Title</Label>
+                  <Input
+                    value={block.title}
+                    onChange={(e) => updateBlock(block.id, "title", e.target.value)}
+                    className="h-11"
+                  />
                 </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSaveOnePager}
-                  disabled={isGenerating || !onePagerBlocks?.length}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  Save One-Pager
-                </Button>
-              </div>
-
-              {!onePagerBlocks?.length ? (
-                <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
-                  No one-pager blocks yet. Go back and click “Generate One-Pager”.
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Main content</Label>
+                  <Textarea
+                    value={block.content}
+                    onChange={(e) => updateBlock(block.id, "content", e.target.value)}
+                    className="min-h-[110px] text-base leading-relaxed"
+                  />
                 </div>
-              ) : (
-                <div className="space-y-4">
-                  {onePagerBlocks.map((block) => (
-                    <div
-                      key={block.id}
-                      className="rounded-2xl border border-border/40 bg-card/50 p-5"
-                    >
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
-                        <div className="md:col-span-1 space-y-2">
-                          <Label className="text-muted-foreground">Title</Label>
-                          <Input
-                            value={block.title}
-                            onChange={(e) =>
-                              updateBlock(block.id, "title", e.target.value)
-                            }
-                            className="h-11"
-                          />
-                        </div>
 
-                        <div className="md:col-span-2 space-y-2">
-                          <Label className="text-muted-foreground">
-                            Main content
-                          </Label>
-                          <Textarea
-                            value={block.content}
-                            onChange={(e) =>
-                              updateBlock(block.id, "content", e.target.value)
-                            }
-                            className="min-h-[110px] text-base leading-relaxed"
-                          />
-
-                          <Label className="text-muted-foreground">
-                            Details (optional)
-                          </Label>
-                          <Textarea
-                            value={block.details || ""}
-                            onChange={(e) =>
-                              updateBlock(block.id, "details", e.target.value)
-                            }
-                            className="min-h-[80px]"
-                            placeholder="Examples, checklist items, micro-steps…"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Details (optional)</Label>
+                  <Textarea
+                    value={block.details || ""}
+                    onChange={(e) => updateBlock(block.id, "details", e.target.value)}
+                    className="min-h-[80px]"
+                    placeholder="Examples, checklist items, micro-steps…"
+                  />
                 </div>
-              )}
-
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setCurrentStep(2)}>
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </Button>
-
-                <Button
-                  variant="gradient"
-                  size="lg"
-                  onClick={handleGenerateDesigns}
-                  disabled={isGenerating || !onePagerBlocks?.length}
-                >
-                  Generate Designs
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </Button>
               </div>
             </div>
-          )}
+          ))}
+        </div>
 
+        {/* RIGHT: live document preview (like your 2nd image) */}
+        <div className="space-y-3">
+          <div className="text-sm text-muted-foreground">Live preview</div>
+
+          <div className="w-full flex items-center justify-center rounded-3xl border border-border/40 bg-[#0B0F19] p-6">
+            {/* A4 aspect “page” */}
+            <div className="w-full max-w-[520px] aspect-[210/297]">
+              <div className="w-full h-full rounded-2xl overflow-hidden">
+                <AaOnePagerDocument
+                  series={series}
+                  hook={hook}
+                  audience={audience}
+                  blocks={onePagerBlocks}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-border/40 bg-card/50 p-4">
+            <div className="font-semibold mb-2">Script (reference)</div>
+            <div className="text-sm text-muted-foreground whitespace-pre-wrap max-h-[260px] overflow-auto">
+              {script || "No script loaded."}
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <div className="flex justify-between pt-4">
+      <Button variant="outline" onClick={() => setCurrentStep(2)}>
+        <ArrowLeft className="w-4 h-4 mr-2" />
+        Back
+      </Button>
+
+      <Button
+        variant="gradient"
+        size="lg"
+        onClick={handleGenerateDesigns}
+        disabled={isGenerating || !onePagerBlocks?.length}
+      >
+        Generate Designs
+        <ArrowRight className="w-4 h-4 ml-2" />
+      </Button>
+    </div>
+  </div>
+)}
+          
           {/* Step 4: Design */}
           {currentStep === 4 && (
             <div className="space-y-6">
