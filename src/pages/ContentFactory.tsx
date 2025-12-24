@@ -89,7 +89,7 @@ function escapeHtml(s: string) {
 export default function ContentFactory() {
   const { user, session } = useAuth() as any;
   const { toast } = useToast();
-  const { templates } = useTemplates();
+  const { templates } = useTemplates(); // (kept even if not used right now)
   const { createExport } = useExports();
 
   const [currentStep, setCurrentStep] = useState(1);
@@ -107,14 +107,14 @@ export default function ContentFactory() {
   const [isSaving, setIsSaving] = useState(false);
 
   const [onePagerBlocks, setOnePagerBlocks] = useState<any[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [selectedFormat, setSelectedFormat] = useState("4:5");
 
   // Step 3: document ref (export + screenshot)
   const onePagerDocRef = useRef<HTMLDivElement>(null);
 
-  // Step 4: design ref (existing export)
-  const designRef = useRef<HTMLDivElement>(null);
+  // Step 4: individual asset refs
+  const boldTextRef = useRef<HTMLDivElement>(null);
+  const reelCoverRef = useRef<HTMLDivElement>(null);
+  const onePagerCoverRef = useRef<HTMLDivElement>(null);
 
   // Script word target
   const wordCount = script.trim().split(/\s+/).filter(Boolean).length;
@@ -128,6 +128,71 @@ export default function ContentFactory() {
   const CONTENT_FACTORY_WEBHOOK =
     import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
 
+  // -----------------------------
+  // Helpers: export
+  // -----------------------------
+  const renderNodeToBlob = async (
+    node: HTMLElement,
+    backgroundColor: string = "#0B0F19"
+  ) => {
+    const canvas = await html2canvas(node, {
+      backgroundColor,
+      scale: 2,
+    });
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("PNG export failed"))),
+        "image/png",
+        0.95
+      );
+    });
+
+    return blob;
+  };
+
+  const exportNodeAsPng = async (
+    node: HTMLElement | null,
+    basename: string,
+    bg: string = "#0B0F19"
+  ) => {
+    if (!node) {
+      toast({
+        title: "Nothing to export",
+        description: "That design element is not mounted yet.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const blob = await renderNodeToBlob(node, bg);
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${basename}_${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Exported",
+        description: "Downloaded PNG.",
+      });
+    } catch (e: any) {
+      toast({
+        title: "Export failed",
+        description: e?.message || "Could not export PNG.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // -----------------------------
+  // Step 1: Generate Script
+  // -----------------------------
   const handleGenerateScript = async () => {
     if (!user) {
       toast({
@@ -214,6 +279,9 @@ export default function ContentFactory() {
     }
   };
 
+  // -----------------------------
+  // Step 2: Generate One-Pager
+  // -----------------------------
   const handleGenerateOnePager = async () => {
     if (!user) {
       toast({
@@ -303,7 +371,9 @@ export default function ContentFactory() {
     }
   };
 
-  // ✅ Step 3: Export the doc preview to PNG (local download)
+  // -----------------------------
+  // Step 3: Export One-Pager PNG
+  // -----------------------------
   const handleExportOnePagerPng = async () => {
     if (!onePagerDocRef.current) {
       toast({
@@ -315,14 +385,7 @@ export default function ContentFactory() {
     }
 
     try {
-      const canvas = await html2canvas(onePagerDocRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-      });
-
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b!), "image/png", 0.95);
-      });
+      const blob = await renderNodeToBlob(onePagerDocRef.current, "#ffffff");
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -346,7 +409,9 @@ export default function ContentFactory() {
     }
   };
 
-  // ✅ Step 3: Open a clean document view in a new tab (includes Print/PDF)
+  // -----------------------------
+  // Step 3: View in New Tab
+  // -----------------------------
   const handleViewInNewTab = () => {
     if (!onePagerBlocks?.length) {
       toast({
@@ -469,14 +534,42 @@ export default function ContentFactory() {
     w.document.close();
   };
 
+  // -----------------------------
+  // Step transitions
+  // -----------------------------
   const handleGenerateDesigns = () => setCurrentStep(4);
 
-  // Step 4 export (kept from your current system)
+  // -----------------------------
+  // Step 4: Save & Export ALL 3 cards to Supabase + Exports
+  // -----------------------------
   const handleSaveAndExport = async () => {
-    if (!user || !designRef.current) {
+    if (!user) {
       toast({
-        title: "Error",
-        description: "No design to export",
+        title: "Not signed in",
+        description: "Please sign in to export designs.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!onePagerBlocks?.length) {
+      toast({
+        title: "Nothing to export",
+        description: "Generate the one-pager first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const boldNode = boldTextRef.current;
+    const reelNode = reelCoverRef.current;
+    const coverNode = onePagerCoverRef.current;
+
+    if (!boldNode || !reelNode || !coverNode) {
+      toast({
+        title: "Export failed",
+        description:
+          "One or more design cards are not mounted yet. Open Step 4 and try again.",
         variant: "destructive",
       });
       return;
@@ -485,49 +578,78 @@ export default function ContentFactory() {
     setIsSaving(true);
 
     try {
-      const canvas = await html2canvas(designRef.current, {
-        backgroundColor: "#0B0F19",
-        scale: 2,
-      });
+      const baseTitle = (hook || contentType || "design").toString();
+      const runId = contentItemId || "temp";
 
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((b) => resolve(b!), "image/png", 0.95);
-      });
+      const items: Array<{
+        key: "bold_text_card" | "reel_cover" | "one_pager_cover";
+        format: "1:1" | "9:16" | "4:5";
+        node: HTMLElement;
+        filenameBase: string;
+      }> = [
+        {
+          key: "bold_text_card",
+          format: "1:1",
+          node: boldNode,
+          filenameBase: "aa_bold_text_card",
+        },
+        {
+          key: "reel_cover",
+          format: "9:16",
+          node: reelNode,
+          filenameBase: "aa_reel_cover",
+        },
+        {
+          key: "one_pager_cover",
+          format: "4:5",
+          node: coverNode,
+          filenameBase: "aa_one_pager_cover",
+        },
+      ];
 
-      const filename = `design_${Date.now()}.png`;
-      const uploaded = await uploadBlobToBucket(
-        "aa-designs",
-        blob,
-        user.id,
-        filename
-      );
+      let successCount = 0;
 
-      if (!uploaded) throw new Error("Upload failed");
+      for (const item of items) {
+        const blob = await renderNodeToBlob(item.node, "#0B0F19");
 
-      const asset = await createAssetRow(
-        user.id,
-        "aa-designs",
-        uploaded.path,
-        "design",
-        ["design", selectedFormat],
-        filename
-      );
-      if (!asset) throw new Error("Asset creation failed");
+        const filename = `${item.filenameBase}_${Date.now()}_${item.format}.png`;
 
-      await createExport({
-        contentItemId: contentItemId || "temp",
-        kind: "design",
-        format: selectedFormat,
-        blob,
-        series,
-        title: hook || contentType,
-      });
+        const uploaded = await uploadBlobToBucket(
+          "aa-designs",
+          blob,
+          user.id,
+          filename
+        );
+        if (!uploaded) throw new Error(`Upload failed (${item.key})`);
+
+        const asset = await createAssetRow(
+          user.id,
+          "aa-designs",
+          uploaded.path,
+          "design",
+          [item.key, item.format],
+          filename
+        );
+        if (!asset) throw new Error(`Asset creation failed (${item.key})`);
+
+        await createExport({
+          contentItemId: runId,
+          kind: item.key,
+          format: item.format,
+          blob,
+          series,
+          title: baseTitle,
+        });
+
+        successCount += 1;
+      }
 
       toast({
         title: "Export saved!",
-        description: "Design exported.",
+        description: `Saved ${successCount}/3 designs to your vault.`,
       });
 
+      // Optional reset (same behavior you had before)
       setCurrentStep(1);
       setContentItemId(null);
       setContentType("");
@@ -535,11 +657,10 @@ export default function ContentFactory() {
       setHook("");
       setScript("");
       setOnePagerBlocks([]);
-      setSelectedTemplate(null);
     } catch (error: any) {
       toast({
         title: "Export failed",
-        description: error.message || "Failed to export design",
+        description: error.message || "Failed to export designs",
         variant: "destructive",
       });
     } finally {
@@ -710,6 +831,7 @@ export default function ContentFactory() {
                     TTS).
                   </p>
                 </div>
+
                 <div
                   className={cn(
                     "px-4 py-2 rounded-xl flex items-center gap-2",
@@ -766,331 +888,369 @@ export default function ContentFactory() {
             </div>
           )}
 
-{/* Step 3 */}
-{currentStep === 3 && (
-  <div className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <h2 className="aa-headline-md text-foreground mb-2">
-          One-Pager Preview
-        </h2>
-        <p className="text-muted-foreground">
-          Only the generated document is shown (no block editing).
-        </p>
-      </div>
-
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleViewInNewTab}
-          disabled={!onePagerBlocks?.length}
-        >
-          <ExternalLink className="w-4 h-4 mr-2" />
-          View in new tab
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExportOnePagerPng}
-          disabled={!onePagerBlocks?.length}
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Export PNG
-        </Button>
-      </div>
-    </div>
-
-    {!onePagerBlocks?.length ? (
-      <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
-        No one-pager yet. Go back and click “Generate One-Pager”.
-      </div>
-    ) : (
-      <div className="space-y-3">
-        <div className="text-sm text-muted-foreground">Document preview</div>
-
-        <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
-          <div ref={onePagerDocRef}>
-            <AaOnePagerDocument
-              brand="Attract Acquisition"
-              series={series}
-              title={hook?.trim() ? hook.trim() : "One-Pager"}
-              audience={audience}
-              blocks={onePagerBlocks}
-            />
-          </div>
-        </div>
-      </div>
-    )}
-
-    <div className="flex justify-between pt-4">
-      <Button variant="outline" onClick={() => setCurrentStep(2)}>
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back
-      </Button>
-
-      <Button
-        variant="gradient"
-        size="lg"
-        onClick={handleGenerateDesigns}
-        disabled={isGenerating || !onePagerBlocks?.length}
-      >
-        Generate Designs
-        <ArrowRight className="w-4 h-4 ml-2" />
-      </Button>
-    </div>
-  </div>
-)}
-
-        {/* Step 4: Design Assets (original 3-column layout) */}
-{currentStep === 4 && (
-  <div className="space-y-6">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <h2 className="aa-headline-md text-foreground mb-2">Design Assets</h2>
-        <p className="text-muted-foreground">
-          Generate export-ready visuals: Bold Text Card • Reel Cover • One-Pager Cover
-        </p>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* 1) Bold Text Card */}
-      <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="font-semibold">Bold Text Card</div>
-            <div className="text-xs text-muted-foreground">1:1 square</div>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportNodeAsPng(boldTextRef.current, "aa_bold_text_card")}
-            disabled={!hook?.trim()}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export PNG
-          </Button>
-        </div>
-
-        <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
-          <div ref={boldTextRef} className="aspect-square w-full rounded-2xl overflow-hidden">
-            <div className="h-full w-full bg-[#0B0F19] text-white p-7 flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
-                  Attract Acquisition
-                </div>
-                <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
-                  AA
-                </div>
-              </div>
-
-              <div className="mt-6">
-                <div className="text-4xl font-semibold leading-tight">
-                  {hook?.trim() ? hook.trim() : "YOUR CONTENT IS NOISE."}
-                </div>
-                <div className="mt-4 text-sm text-white/60 leading-relaxed">
-                  {series ? `Series: ${series}` : "Make your message unignorable."}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-white/50">
-                <div>{audience}</div>
-                <div className="text-white/60">aa-brand-studio</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-4 flex gap-2">
-          <Button
-            variant="gradient"
-            className="flex-1"
-            onClick={() =>
-              toast({
-                title: "Not wired yet",
-                description: "This button is a placeholder. Export works already.",
-              })
-            }
-          >
-            Generate Bold Text Card
-          </Button>
-        </div>
-      </div>
-
-      {/* 2) Reel Cover */}
-      <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="font-semibold">Reel Cover</div>
-            <div className="text-xs text-muted-foreground">9:16</div>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export PNG
-          </Button>
-        </div>
-
-        <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
-          <div ref={reelCoverRef} className="aspect-[9/16] w-full rounded-2xl overflow-hidden">
-            <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
-              <div className="flex items-start justify-between">
-                <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
-                  {series ? series.replaceAll("-", " ") : "Attraction Audit"}
-                </div>
-                <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
-                  AA
-                </div>
-              </div>
-
-              <div className="mt-6 text-4xl font-semibold leading-tight">
-                {hook?.trim() ? hook.trim() : "This is why your content doesn’t convert."}
-              </div>
-
-              <div className="mt-4 text-sm text-white/65 leading-relaxed">
-                Watch before you post — fix the one thing that blocks bookings.
-              </div>
-
-              <div className="mt-auto">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="text-xs text-white/60">Audience</div>
-                  <div className="mt-1 font-semibold">{audience}</div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between text-[11px] text-white/50">
-                  <div>@attractacquisition</div>
-                  <div className="text-white/60">aa-brand-studio</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="pt-4 flex gap-2">
-          <Button
-            variant="gradient"
-            className="flex-1"
-            onClick={() =>
-              toast({
-                title: "Not wired yet",
-                description: "This button is a placeholder. Export works already.",
-              })
-            }
-          >
-            Generate Reel Cover
-          </Button>
-        </div>
-      </div>
-
-      {/* 3) One-Pager Cover */}
-      <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="font-semibold">One-Pager Cover</div>
-            <div className="text-xs text-muted-foreground">4:5</div>
-          </div>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportNodeAsPng(onePagerCoverRef.current, "aa_one_pager_cover")}
-            disabled={!onePagerBlocks?.length}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export PNG
-          </Button>
-        </div>
-
-        <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
-          <div ref={onePagerCoverRef} className="aspect-[4/5] w-full rounded-2xl overflow-hidden">
-            <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
+          {/* Step 3 */}
+          {currentStep === 3 && (
+            <div className="space-y-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
-                    Attract Acquisition
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold leading-tight">
-                    {hook?.trim() ? hook.trim() : "One-Pager"}
-                  </div>
-                  <div className="mt-2 text-sm text-white/60">{audience}</div>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    One-Pager Preview
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Only the generated document is shown (no block editing).
+                  </p>
                 </div>
 
-                <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
-                  AA
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleViewInNewTab}
+                    disabled={!onePagerBlocks?.length}
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    View in new tab
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportOnePagerPng}
+                    disabled={!onePagerBlocks?.length}
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export PNG
+                  </Button>
                 </div>
               </div>
 
-              <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="text-xs text-white/60">What you’ll get</div>
-                <ul className="mt-2 space-y-2 text-sm text-white/85">
-                  <li>• Clear steps (no fluff)</li>
-                  <li>• A simple checklist</li>
-                  <li>• Examples you can copy</li>
-                </ul>
-              </div>
+              {!onePagerBlocks?.length ? (
+                <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
+                  No one-pager yet. Go back and click “Generate One-Pager”.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    Document preview
+                  </div>
 
-              <div className="mt-auto flex items-center justify-between text-[11px] text-white/50">
-                <div>{series || "Series"}</div>
-                <div className="text-white/60">aa-brand-studio</div>
+                  <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
+                    <div ref={onePagerDocRef}>
+                      <AaOnePagerDocument
+                        brand="Attract Acquisition"
+                        series={series}
+                        title={hook?.trim() ? hook.trim() : "One-Pager"}
+                        audience={audience}
+                        blocks={onePagerBlocks}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleGenerateDesigns}
+                  disabled={isGenerating || !onePagerBlocks?.length}
+                >
+                  Generate Designs
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
+          )}
 
-        <div className="pt-4 flex gap-2">
-          <Button
-            variant="gradient"
-            className="flex-1"
-            onClick={() =>
-              toast({
-                title: "Not wired yet",
-                description: "This button is a placeholder. Export works already.",
-              })
-            }
-            disabled={!onePagerBlocks?.length}
-          >
-            Generate One-Pager Cover
-          </Button>
-        </div>
-      </div>
-    </div>
+          {/* Step 4: Design Assets (3-column layout) */}
+          {currentStep === 4 && (
+            <div className="space-y-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="aa-headline-md text-foreground mb-2">
+                    Design Assets
+                  </h2>
+                  <p className="text-muted-foreground">
+                    Generate export-ready visuals: Bold Text Card • Reel Cover •
+                    One-Pager Cover
+                  </p>
+                </div>
+              </div>
 
-    <div className="flex justify-between pt-4">
-      <Button variant="outline" onClick={() => setCurrentStep(3)}>
-        <ArrowLeft className="w-4 h-4 mr-2" />
-        Back
-      </Button>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* 1) Bold Text Card */}
+                <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="font-semibold">Bold Text Card</div>
+                      <div className="text-xs text-muted-foreground">
+                        1:1 square
+                      </div>
+                    </div>
 
-      <Button
-        variant="gradient"
-        size="lg"
-        onClick={handleSaveAndExport}
-        disabled={isSaving || !onePagerBlocks?.length}
-      >
-        {isSaving ? (
-          <>
-            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-            Saving...
-          </>
-        ) : (
-          <>
-            <Download className="w-4 h-4 mr-2" />
-            Save & Export
-          </>
-        )}
-      </Button>
-    </div>
-  </div>
-)}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        exportNodeAsPng(
+                          boldTextRef.current,
+                          "aa_bold_text_card"
+                        )
+                      }
+                      disabled={!hook?.trim()}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export PNG
+                    </Button>
+                  </div>
 
+                  <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
+                    <div
+                      ref={boldTextRef}
+                      className="aspect-square w-full rounded-2xl overflow-hidden"
+                    >
+                      <div className="h-full w-full bg-[#0B0F19] text-white p-7 flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
+                            Attract Acquisition
+                          </div>
+                          <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                            AA
+                          </div>
+                        </div>
 
+                        <div className="mt-6">
+                          <div className="text-4xl font-semibold leading-tight">
+                            {hook?.trim()
+                              ? hook.trim()
+                              : "YOUR CONTENT IS NOISE."}
+                          </div>
+                          <div className="mt-4 text-sm text-white/60 leading-relaxed">
+                            {series
+                              ? `Series: ${series}`
+                              : "Make your message unignorable."}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-white/50">
+                          <div>{audience}</div>
+                          <div className="text-white/60">aa-brand-studio</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-2">
+                    <Button
+                      variant="gradient"
+                      className="flex-1"
+                      onClick={() =>
+                        toast({
+                          title: "Not wired yet",
+                          description:
+                            "This button is a placeholder. Export works already.",
+                        })
+                      }
+                    >
+                      Generate Bold Text Card
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 2) Reel Cover */}
+                <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="font-semibold">Reel Cover</div>
+                      <div className="text-xs text-muted-foreground">9:16</div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        exportNodeAsPng(reelCoverRef.current, "aa_reel_cover")
+                      }
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export PNG
+                    </Button>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
+                    <div
+                      ref={reelCoverRef}
+                      className="aspect-[9/16] w-full rounded-2xl overflow-hidden"
+                    >
+                      <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
+                        <div className="flex items-start justify-between">
+                          <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
+                            {series ? series.split("-").join(" ") : "Attraction Audit"}
+                          </div>
+                          <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                            AA
+                          </div>
+                        </div>
+
+                        <div className="mt-6 text-4xl font-semibold leading-tight">
+                          {hook?.trim()
+                            ? hook.trim()
+                            : "This is why your content doesn’t convert."}
+                        </div>
+
+                        <div className="mt-4 text-sm text-white/65 leading-relaxed">
+                          Watch before you post — fix the one thing that blocks
+                          bookings.
+                        </div>
+
+                        <div className="mt-auto">
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                            <div className="text-xs text-white/60">Audience</div>
+                            <div className="mt-1 font-semibold">{audience}</div>
+                          </div>
+
+                          <div className="mt-4 flex items-center justify-between text-[11px] text-white/50">
+                            <div>@attractacquisition</div>
+                            <div className="text-white/60">aa-brand-studio</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-2">
+                    <Button
+                      variant="gradient"
+                      className="flex-1"
+                      onClick={() =>
+                        toast({
+                          title: "Not wired yet",
+                          description:
+                            "This button is a placeholder. Export works already.",
+                        })
+                      }
+                    >
+                      Generate Reel Cover
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 3) One-Pager Cover */}
+                <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="font-semibold">One-Pager Cover</div>
+                      <div className="text-xs text-muted-foreground">4:5</div>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        exportNodeAsPng(
+                          onePagerCoverRef.current,
+                          "aa_one_pager_cover"
+                        )
+                      }
+                      disabled={!onePagerBlocks?.length}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export PNG
+                    </Button>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
+                    <div
+                      ref={onePagerCoverRef}
+                      className="aspect-[4/5] w-full rounded-2xl overflow-hidden"
+                    >
+                      <div className="h-full w-full bg-[#0B0F19] text-white p-6 flex flex-col">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-[10px] tracking-[0.22em] uppercase text-white/60">
+                              Attract Acquisition
+                            </div>
+                            <div className="mt-2 text-3xl font-semibold leading-tight">
+                              {hook?.trim() ? hook.trim() : "One-Pager"}
+                            </div>
+                            <div className="mt-2 text-sm text-white/60">
+                              {audience}
+                            </div>
+                          </div>
+
+                          <div className="w-10 h-10 rounded-2xl bg-[#6A00F4] flex items-center justify-center font-bold">
+                            AA
+                          </div>
+                        </div>
+
+                        <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
+                          <div className="text-xs text-white/60">What you’ll get</div>
+                          <ul className="mt-2 space-y-2 text-sm text-white/85">
+                            <li>• Clear steps (no fluff)</li>
+                            <li>• A simple checklist</li>
+                            <li>• Examples you can copy</li>
+                          </ul>
+                        </div>
+
+                        <div className="mt-auto flex items-center justify-between text-[11px] text-white/50">
+                          <div>{series || "Series"}</div>
+                          <div className="text-white/60">aa-brand-studio</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex gap-2">
+                    <Button
+                      variant="gradient"
+                      className="flex-1"
+                      onClick={() =>
+                        toast({
+                          title: "Not wired yet",
+                          description:
+                            "This button is a placeholder. Export works already.",
+                        })
+                      }
+                      disabled={!onePagerBlocks?.length}
+                    >
+                      Generate One-Pager Cover
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(3)}>
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+
+                <Button
+                  variant="gradient"
+                  size="lg"
+                  onClick={handleSaveAndExport}
+                  disabled={isSaving || !onePagerBlocks?.length}
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 mr-2" />
+                      Save & Export All
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </AppLayout>
