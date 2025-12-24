@@ -25,7 +25,6 @@ export default function Dashboard() {
   const { contentItems, isLoading: isLoadingContent } = useContentItems();
   const [addProofOpen, setAddProofOpen] = useState(false);
 
-  
   const kpis = [
     { 
       title: "Posts Created", 
