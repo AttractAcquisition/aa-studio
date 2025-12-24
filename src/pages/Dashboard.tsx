@@ -24,6 +24,7 @@ export default function Dashboard() {
   const { stats, isLoading } = useDashboardStats();
   const { contentItems, isLoading: isLoadingContent } = useContentItems();
   const [addProofOpen, setAddProofOpen] = useState(false);
+
   
   const kpis = [
     { 
