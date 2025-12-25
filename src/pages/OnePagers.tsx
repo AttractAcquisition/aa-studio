@@ -40,7 +40,7 @@ import { useScriptLibrary } from "@/hooks/useScriptLibrary";
 import { OnePagerRenderer } from "@/components/onepager/OnePagerRenderer";
 import { TEMPLATE_OPTIONS } from "@/lib/one-pager-templates";
 import { validateOnePagerLayout, type OnePagerLayout, type OnePagerTemplateId } from "@/types/one-pager-layout";
-import { renderNodeToBlob, downloadBlob } from "@/lib/export-utils";
+import { renderOnePagerToBlob, downloadBlob } from "@/lib/export-utils";
 import { toast } from "sonner";
 
 export default function OnePagers() {
@@ -211,7 +211,7 @@ export default function OnePagers() {
   const handleExportPng = async () => {
     if (!previewRef.current) return;
     try {
-      const blob = await renderNodeToBlob(previewRef.current, "#ffffff");
+      const blob = await renderOnePagerToBlob(previewRef.current, 1080);
       downloadBlob(blob, `one_pager_${Date.now()}.png`);
       toast.success("PNG exported!");
     } catch (e) {

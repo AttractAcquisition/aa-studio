@@ -22,7 +22,7 @@ import {
   generateOnePagerHtml,
 } from "@/lib/content-factory-parsers";
 import {
-  renderNodeToBlob,
+  renderOnePagerToBlob,
   downloadBlob,
   downloadFromUrlOrDataUrl,
   openHtmlInNewTab,
@@ -365,7 +365,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     }
   }, [user, session, contentItemId, toast]);
 
-  // Step 3: Export One-Pager PNG
+  // Step 3: Export One-Pager PNG (fixed for proper rendering)
   const exportOnePagerPng = useCallback(async () => {
     if (!onePagerDocRef.current) {
       toast({
@@ -377,21 +377,94 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     }
 
     try {
-      const blob = await renderNodeToBlob(onePagerDocRef.current, "#ffffff");
+      // Use fixed width export for consistent quality
+      const blob = await renderOnePagerToBlob(onePagerDocRef.current, 1080);
       downloadBlob(blob, `aa_one_pager_${Date.now()}.png`);
 
       toast({
         title: "Exported",
         description: "Downloaded your one-pager PNG.",
       });
+
+      return blob;
     } catch (e) {
       toast({
         title: "Export failed",
         description: e instanceof Error ? e.message : "Could not export PNG.",
         variant: "destructive",
       });
+      return null;
     }
   }, [toast]);
+
+  // Step 3: Save One-Pager to Library (one_pagers_v2 table)
+  const [isSavingOnePager, setIsSavingOnePager] = useState(false);
+
+  const saveOnePagerToLibrary = useCallback(async () => {
+    if (!user || !onePagerLayout) {
+      toast({
+        title: "Nothing to save",
+        description: "Generate a valid one-pager first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingOnePager(true);
+
+    try {
+      // Generate title from hook, first section heading, or default
+      let title = "One-Pager";
+      if (hook) {
+        title = hook.slice(0, 100);
+      } else if (onePagerLayout.meta?.title) {
+        title = onePagerLayout.meta.title;
+      } else if (onePagerLayout.sections?.[0]?.heading) {
+        title = onePagerLayout.sections[0].heading;
+      }
+
+      // Export PNG and upload to storage
+      let exportPngUrl: string | null = null;
+      if (onePagerDocRef.current) {
+        try {
+          const blob = await renderOnePagerToBlob(onePagerDocRef.current, 1080);
+          const filename = `${Date.now()}_onepager.png`;
+          const result = await uploadBlobToBucket("aa-onepagers", blob, user.id, filename);
+          
+          if (result) {
+            exportPngUrl = result.publicUrl;
+          }
+        } catch (uploadErr) {
+          console.warn("Failed to upload PNG, saving without image:", uploadErr);
+        }
+      }
+
+      // Insert into one_pagers_v2
+      const { error } = await supabase.from("one_pagers_v2").insert({
+        user_id: user.id,
+        title,
+        layout_json: onePagerLayout as any,
+        template_id: selectedTemplate || null,
+        export_png_url: exportPngUrl,
+        tags: series ? [series] : [],
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Saved to One-Pagers",
+        description: "Your one-pager is now in your library.",
+      });
+    } catch (e) {
+      toast({
+        title: "Save failed",
+        description: e instanceof Error ? e.message : "Could not save one-pager.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingOnePager(false);
+    }
+  }, [user, onePagerLayout, hook, selectedTemplate, series, toast]);
 
   // Step 3: View in New Tab
   const viewOnePagerNewTab = useCallback(() => {
@@ -827,6 +900,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     onePagerLayoutError,
     selectedTemplate,
     isGeneratingLayout,
+    isSavingOnePager,
 
     // Computed
     wordCount,
@@ -863,5 +937,6 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     saveScriptToLibrary,
     exportScriptTxt,
     skipToManualScript,
+    saveOnePagerToLibrary,
   };
 }
