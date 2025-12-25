@@ -75,23 +75,50 @@ export async function renderNodeToBlob(
 
 /**
  * Render node to PNG with fixed width for one-pager export
+ * Fixed to avoid blank exports by properly cloning and waiting for rendering
  */
 export async function renderOnePagerToBlob(
   node: HTMLElement,
   width = 1080
 ): Promise<Blob> {
-  // Clone the node to avoid modifying the original
+  // Wait for fonts to load
+  if (document.fonts && document.fonts.ready) {
+    await document.fonts.ready;
+  }
+
+  // Wait for next frame to ensure DOM is stable
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+
+  // Clone the node deeply
   const clone = node.cloneNode(true) as HTMLElement;
   
-  // Create a fixed-size container for export
+  // Reset any transforms or problematic styles on the clone
+  clone.style.transform = "none";
+  clone.style.position = "static";
+  clone.style.width = `${width}px`;
+  clone.style.maxWidth = "none";
+  clone.style.minWidth = `${width}px`;
+  clone.style.overflow = "visible";
+  
+  // Create a fixed-size container for export (offscreen but visible)
   const container = document.createElement("div");
-  container.style.position = "absolute";
-  container.style.left = "-9999px";
+  container.style.position = "fixed";
+  container.style.left = "-10000px";
   container.style.top = "0";
   container.style.width = `${width}px`;
   container.style.backgroundColor = "#0B0F19";
+  container.style.zIndex = "-9999";
+  container.style.visibility = "visible";
+  container.style.opacity = "1";
   container.appendChild(clone);
   document.body.appendChild(container);
+
+  // Small delay to ensure clone is rendered
+  await new Promise((resolve) => setTimeout(resolve, 100));
 
   try {
     const dataUrl = await toPng(container, {
@@ -99,10 +126,17 @@ export async function renderOnePagerToBlob(
       pixelRatio: 2,
       backgroundColor: "#0B0F19",
       width,
+      skipFonts: false,
       style: {
         transform: "none",
+        opacity: "1",
+        visibility: "visible",
       },
     });
+
+    if (!dataUrl || dataUrl === "data:,") {
+      throw new Error("Export produced empty image");
+    }
 
     const res = await fetch(dataUrl);
     return res.blob();

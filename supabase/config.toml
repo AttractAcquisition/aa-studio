@@ -12,6 +12,9 @@ verify_jwt = false
 [functions.generate-onepager-layout]
 verify_jwt = false
 
+[functions.generate-script]
+verify_jwt = false
+
 [functions.lead-webhook]
 verify_jwt = false
 

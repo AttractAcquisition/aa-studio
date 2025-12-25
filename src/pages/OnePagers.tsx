@@ -340,8 +340,8 @@ export default function OnePagers() {
 
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" className="flex-1" onClick={() => handleEdit(op)}>
-                    <Edit className="w-4 h-4 mr-1" />
-                    Edit
+                    <Eye className="w-4 h-4 mr-1" />
+                    Preview
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => handleDuplicate(op.id)}>
                     <Copy className="w-4 h-4" />

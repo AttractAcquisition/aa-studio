@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { X, Sparkles, Wand2, Zap, Copy, RefreshCw } from "lucide-react";
+import { X, Sparkles, Wand2, Zap, Copy, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ScriptLibraryItem, ScriptPlatform, ScriptStatus } from "@/hooks/useScriptLibrary";
 
@@ -64,6 +64,8 @@ export function ScriptModal({
   const [body, setBody] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [topicInput, setTopicInput] = useState("");
 
   useEffect(() => {
     if (script) {
@@ -82,7 +84,56 @@ export function ScriptModal({
       setTags([]);
     }
     setTagInput("");
+    setTopicInput("");
   }, [script, open]);
+
+  const handleGenerateWithAI = async () => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch(
+        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-script`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: topicInput || undefined,
+            audience: "Physical/local business owners",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate' }));
+        throw new Error(errorData.error || 'Failed to generate script');
+      }
+
+      const data = await response.json();
+      
+      if (!data.script) {
+        throw new Error('No script returned');
+      }
+
+      // Split into hook (first sentence) and body (rest)
+      const sentences = data.script.split(/(?<=[.!?])\s+/);
+      const generatedHook = sentences[0] || "";
+      const generatedBody = sentences.slice(1).join(" ") || data.script;
+
+      setHook(generatedHook);
+      setBody(generatedBody);
+      
+      // Auto-generate title from hook if empty
+      if (!title) {
+        setTitle(generatedHook.slice(0, 50) + (generatedHook.length > 50 ? "..." : ""));
+      }
+
+      toast.success("Script generated! Edit as needed.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to generate script";
+      toast.error(msg);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && tagInput.trim()) {
@@ -172,6 +223,42 @@ export function ScriptModal({
               </Select>
             </div>
           </div>
+
+          {/* AI Generation */}
+          {!script && (
+            <div className="space-y-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+              <Label className="text-primary font-medium">Generate with AI</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={topicInput}
+                  onChange={(e) => setTopicInput(e.target.value)}
+                  placeholder="Optional: Enter a topic (e.g., 'lead generation')"
+                  className="bg-background border-border flex-1"
+                />
+                <Button
+                  type="button"
+                  onClick={handleGenerateWithAI}
+                  disabled={isGenerating}
+                  className="bg-primary hover:bg-primary/90"
+                >
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      Generate
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Generates a 140-160 word on-brand AA script. You can edit it before saving.
+              </p>
+            </div>
+          )}
 
           {/* Hook */}
           <div className="space-y-2">
