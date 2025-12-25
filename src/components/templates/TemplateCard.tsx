@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Eye, Edit, Copy, Lock } from "lucide-react";
+import { Eye, Edit, Copy, Lock, Trash2 } from "lucide-react";
 
 interface TemplateCardProps {
   type: string;
@@ -11,6 +11,7 @@ interface TemplateCardProps {
   onPreview?: () => void;
   onEdit?: () => void;
   onDuplicate?: () => void;
+  onDelete?: () => void;
   isSystem?: boolean;
 }
 
@@ -23,6 +24,7 @@ export function TemplateCard({
   onPreview, 
   onEdit,
   onDuplicate,
+  onDelete,
   isSystem,
 }: TemplateCardProps) {
   return (
@@ -51,6 +53,16 @@ export function TemplateCard({
                   <Copy className="w-4 h-4 mr-1" />
                   Copy
                 </Button>
+                {onDelete && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={onDelete}
+                    className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
               </>
             )}
           </div>

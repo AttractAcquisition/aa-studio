@@ -12,7 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, Copy, Loader2, Image, Lock } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Save, Copy, Loader2, Image, Lock, Trash2 } from "lucide-react";
 import { useTemplates } from "@/hooks/useTemplates";
 import { toast } from "sonner";
 
@@ -22,7 +32,7 @@ const FORMATS = ["1:1", "4:5", "9:16", "16:9"];
 export default function TemplateEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getTemplateById, updateTemplate, createTemplate, isUpdating, isCreating } = useTemplates();
+  const { getTemplateById, updateTemplate, createTemplate, deleteTemplate, isUpdating, isCreating } = useTemplates();
 
   const [loading, setLoading] = useState(true);
   const [template, setTemplate] = useState<any>(null);
@@ -31,6 +41,8 @@ export default function TemplateEdit() {
   const [description, setDescription] = useState("");
   const [formats, setFormats] = useState<string[]>([]);
   const [previewAssetPath, setPreviewAssetPath] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
 
   useEffect(() => {
     async function loadTemplate() {
@@ -87,6 +99,23 @@ export default function TemplateEdit() {
     navigate("/templates");
   };
 
+  const handleDelete = () => {
+    if (!id || !template) return;
+    
+    if (template.is_system) {
+      toast.error("Cannot delete system templates");
+      return;
+    }
+
+    try {
+      deleteTemplate(id);
+      toast.success("Template deleted");
+      navigate("/templates");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete template");
+    }
+  };
+
   const toggleFormat = (format: string) => {
     setFormats((prev) =>
       prev.includes(format)
@@ -138,14 +167,24 @@ export default function TemplateEdit() {
               Create Copy
             </Button>
           ) : (
-            <Button variant="gradient" onClick={handleSave} disabled={isUpdating}>
-              {isUpdating ? (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4 mr-2" />
-              )}
-              Save Changes
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-destructive border-destructive/30 hover:bg-destructive/10"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete
+              </Button>
+              <Button variant="gradient" onClick={handleSave} disabled={isUpdating}>
+                {isUpdating ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Save Changes
+              </Button>
+            </div>
           )}
         </div>
 
@@ -289,6 +328,27 @@ export default function TemplateEdit() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{name}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
