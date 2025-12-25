@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { AppLayout } from "@/components/layout/AppLayout";
 import { Plus, FileText, Search, Copy, Trash2, Pencil, CheckCircle, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,7 +152,8 @@ export default function ScriptLibrary() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-6 space-y-6">
+    <AppLayout>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -425,6 +427,7 @@ export default function ScriptLibrary() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      </div>
+    </AppLayout>
   );
 }
