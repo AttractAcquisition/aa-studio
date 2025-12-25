@@ -19,6 +19,11 @@ export interface ScriptLibraryItem {
   status: ScriptStatus;
   word_count: number;
   last_used_at: string | null;
+  audio_path: string | null;
+  audio_duration_sec: number | null;
+  audio_updated_at: string | null;
+  // Runtime field for signed URL
+  audio_url?: string | null;
 }
 
 export interface CreateScriptParams {
@@ -39,10 +44,24 @@ export interface UpdateScriptParams {
   tags?: string[];
   status?: ScriptStatus;
   last_used_at?: string;
+  audio_path?: string | null;
+  audio_duration_sec?: number | null;
+  audio_updated_at?: string | null;
 }
 
 function countWords(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+async function getSignedUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from("script-audio")
+    .createSignedUrl(path, 3600); // 1 hour expiry
+  if (error) {
+    console.error("Failed to get signed URL:", error);
+    return null;
+  }
+  return data.signedUrl;
 }
 
 export function useScriptLibrary() {
@@ -62,7 +81,19 @@ export function useScriptLibrary() {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as ScriptLibraryItem[];
+
+      // Generate signed URLs for scripts with audio
+      const scriptsWithUrls = await Promise.all(
+        (data as ScriptLibraryItem[]).map(async (script) => {
+          if (script.audio_path) {
+            const url = await getSignedUrl(script.audio_path);
+            return { ...script, audio_url: url };
+          }
+          return { ...script, audio_url: null };
+        })
+      );
+
+      return scriptsWithUrls;
     },
     enabled: !!user?.id,
   });
@@ -115,6 +146,9 @@ export function useScriptLibrary() {
       if (params.tags !== undefined) updates.tags = params.tags;
       if (params.status !== undefined) updates.status = params.status;
       if (params.last_used_at !== undefined) updates.last_used_at = params.last_used_at;
+      if (params.audio_path !== undefined) updates.audio_path = params.audio_path;
+      if (params.audio_duration_sec !== undefined) updates.audio_duration_sec = params.audio_duration_sec;
+      if (params.audio_updated_at !== undefined) updates.audio_updated_at = params.audio_updated_at;
 
       const { data, error } = await supabase
         .from("script_library")
@@ -139,6 +173,13 @@ export function useScriptLibrary() {
   const deleteScript = useMutation({
     mutationFn: async (id: string) => {
       if (!user?.id) throw new Error("Not authenticated");
+
+      // First get the script to check for audio
+      const script = scripts.find((s) => s.id === id);
+      if (script?.audio_path) {
+        // Delete audio file from storage
+        await supabase.storage.from("script-audio").remove([script.audio_path]);
+      }
 
       const { error } = await supabase
         .from("script_library")
@@ -184,6 +225,86 @@ export function useScriptLibrary() {
     },
   });
 
+  const uploadAudio = useMutation({
+    mutationFn: async ({ scriptId, blob, duration }: { scriptId: string; blob: Blob; duration: number }) => {
+      if (!user?.id) throw new Error("Not authenticated");
+
+      const ext = blob.type.includes("webm") ? "webm" : "m4a";
+      const filename = `${Date.now()}.${ext}`;
+      const path = `${user.id}/${scriptId}/${filename}`;
+
+      // Get current script to delete old audio if exists
+      const script = scripts.find((s) => s.id === scriptId);
+      if (script?.audio_path) {
+        await supabase.storage.from("script-audio").remove([script.audio_path]);
+      }
+
+      // Upload new audio
+      const { error: uploadError } = await supabase.storage
+        .from("script-audio")
+        .upload(path, blob, {
+          contentType: blob.type,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Update script record
+      const { error: updateError } = await supabase
+        .from("script_library")
+        .update({
+          audio_path: path,
+          audio_duration_sec: duration,
+          audio_updated_at: new Date().toISOString(),
+        })
+        .eq("id", scriptId)
+        .eq("user_id", user.id);
+
+      if (updateError) throw updateError;
+
+      return path;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Audio saved");
+    },
+    onError: (error) => {
+      toast.error(`Failed to save audio: ${error.message}`);
+    },
+  });
+
+  const deleteAudio = useMutation({
+    mutationFn: async (scriptId: string) => {
+      if (!user?.id) throw new Error("Not authenticated");
+
+      const script = scripts.find((s) => s.id === scriptId);
+      if (!script?.audio_path) return;
+
+      // Delete from storage
+      await supabase.storage.from("script-audio").remove([script.audio_path]);
+
+      // Clear audio fields
+      const { error } = await supabase
+        .from("script_library")
+        .update({
+          audio_path: null,
+          audio_duration_sec: null,
+          audio_updated_at: null,
+        })
+        .eq("id", scriptId)
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("Audio deleted");
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete audio: ${error.message}`);
+    },
+  });
+
   // Computed stats
   const stats = {
     total: scripts.length,
@@ -201,5 +322,7 @@ export function useScriptLibrary() {
     updateScript,
     deleteScript,
     markAsUsed,
+    uploadAudio,
+    deleteAudio,
   };
 }

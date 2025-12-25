@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ScriptModal } from "@/components/modals/ScriptModal";
+import { ScriptAudioPlayer } from "@/components/scripts/ScriptAudioPlayer";
 import {
   useScriptLibrary,
   type ScriptLibraryItem,
@@ -49,8 +50,17 @@ const statusColors: Record<ScriptStatus, string> = {
 type SortOption = "newest" | "oldest" | "updated" | "title";
 
 export default function ScriptLibrary() {
-  const { scripts, isLoading, stats, createScript, updateScript, deleteScript, markAsUsed } =
-    useScriptLibrary();
+  const { 
+    scripts, 
+    isLoading, 
+    stats, 
+    createScript, 
+    updateScript, 
+    deleteScript, 
+    markAsUsed,
+    uploadAudio,
+    deleteAudio,
+  } = useScriptLibrary();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingScript, setEditingScript] = useState<ScriptLibraryItem | null>(null);
@@ -149,6 +159,19 @@ export default function ScriptLibrary() {
 
   const handleMarkUsed = async (id: string) => {
     await markAsUsed.mutateAsync(id);
+  };
+
+  const handleRecordAudio = async (scriptId: string, blob: Blob, duration: number) => {
+    await uploadAudio.mutateAsync({ scriptId, blob, duration });
+  };
+
+  const handleDeleteAudio = async (scriptId: string) => {
+    await deleteAudio.mutateAsync(scriptId);
+  };
+
+  const handleGenerateTTS = (scriptId: string) => {
+    console.log("Generate TTS requested for script:", scriptId);
+    toast.info("TTS generation coming soon");
   };
 
   return (
@@ -375,6 +398,18 @@ export default function ScriptLibrary() {
                     )}
                   </div>
                 )}
+
+                {/* Audio Section */}
+                <div className="pt-2 border-t border-border">
+                  <ScriptAudioPlayer
+                    audioUrl={script.audio_url || null}
+                    audioDuration={script.audio_duration_sec}
+                    isUploading={uploadAudio.isPending}
+                    onRecord={async (blob, duration) => handleRecordAudio(script.id, blob, duration)}
+                    onDelete={async () => handleDeleteAudio(script.id)}
+                    onGenerateTTS={() => handleGenerateTTS(script.id)}
+                  />
+                </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <span className="text-xs text-muted-foreground">

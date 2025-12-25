@@ -581,6 +581,9 @@ export type Database = {
       }
       script_library: {
         Row: {
+          audio_duration_sec: number | null
+          audio_path: string | null
+          audio_updated_at: string | null
           body: string
           created_at: string
           hook: string | null
@@ -595,6 +598,9 @@ export type Database = {
           word_count: number | null
         }
         Insert: {
+          audio_duration_sec?: number | null
+          audio_path?: string | null
+          audio_updated_at?: string | null
           body: string
           created_at?: string
           hook?: string | null
@@ -609,6 +615,9 @@ export type Database = {
           word_count?: number | null
         }
         Update: {
+          audio_duration_sec?: number | null
+          audio_path?: string | null
+          audio_updated_at?: string | null
           body?: string
           created_at?: string
           hook?: string | null
