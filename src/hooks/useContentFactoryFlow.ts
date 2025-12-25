@@ -5,6 +5,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import type {
   DesignAssetKind,
   DesignImages,
+  DesignPrompts,
   OnePagerBlock,
 } from "@/types/content-factory";
 import {
@@ -66,11 +67,14 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
   const [script, setScript] = useState("");
   const [onePagerBlocks, setOnePagerBlocks] = useState<OnePagerBlock[]>([]);
   const [designImages, setDesignImages] = useState<DesignImages>({});
+  const [designPrompts, setDesignPrompts] = useState<DesignPrompts>({});
 
   // Loading state
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingDesignKind, setIsGeneratingDesignKind] =
+    useState<DesignAssetKind | null>(null);
+  const [isGeneratingPromptKind, setIsGeneratingPromptKind] =
     useState<DesignAssetKind | null>(null);
 
   // Ref for one-pager document
@@ -92,6 +96,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     setScript("");
     setOnePagerBlocks([]);
     setDesignImages({});
+    setDesignPrompts({});
   }, []);
 
   // Step 1: Generate Script
@@ -313,8 +318,8 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     openHtmlInNewTab(html);
   }, [onePagerBlocks, hook, series, audience, toast]);
 
-  // Step 4: Generate Design Asset
-  const generateDesign = useCallback(
+  // Step 4: Generate Design Prompt (Step 1 of 2-step flow)
+  const generateDesignPrompt = useCallback(
     async (kind: DesignAssetKind) => {
       if (!user) {
         toast({
@@ -325,19 +330,72 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
         return;
       }
 
-      if (!contentItemId) {
+      setIsGeneratingPromptKind(kind);
+
+      try {
+        const response = await fetch(
+          `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-design-prompt`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              kind,
+              hook,
+              series,
+              audience,
+              script,
+              onePagerBlocks,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to generate prompt' }));
+          throw new Error(errorData.error || 'Failed to generate prompt');
+        }
+
+        const data = await response.json();
+        
+        if (!data.prompt) {
+          throw new Error('No prompt returned from API');
+        }
+
+        setDesignPrompts((prev) => ({ ...prev, [kind]: data.prompt }));
+
         toast({
-          title: "Missing run_id",
-          description: "Generate a script + one-pager first.",
+          title: "Prompt generated",
+          description: "Edit the prompt if needed, then click Generate Image.",
+        });
+      } catch (e) {
+        toast({
+          title: "Prompt generation failed",
+          description: e instanceof Error ? e.message : "Could not generate prompt.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsGeneratingPromptKind(null);
+      }
+    },
+    [user, hook, series, audience, script, onePagerBlocks, toast]
+  );
+
+  // Step 4: Generate Design Image (Step 2 of 2-step flow)
+  const generateDesignImage = useCallback(
+    async (kind: DesignAssetKind, customPrompt?: string) => {
+      if (!user) {
+        toast({
+          title: "Not signed in",
+          description: "Please sign in to generate designs.",
           variant: "destructive",
         });
         return;
       }
 
-      if (!onePagerBlocks?.length) {
+      const prompt = customPrompt || designPrompts[kind];
+      if (!prompt) {
         toast({
-          title: "Missing one-pager",
-          description: "Generate the one-pager first.",
+          title: "No prompt",
+          description: "Generate a prompt first.",
           variant: "destructive",
         });
         return;
@@ -346,43 +404,69 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       setIsGeneratingDesignKind(kind);
 
       try {
-        const data = await apiGenerateDesign(contentItemId, kind, session, user);
-        const imageUrl = extractDesignImage(data);
+        const response = await fetch(
+          `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-design-image`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt, kind }),
+          }
+        );
 
-        if (!imageUrl) {
-          throw new Error(
-            data?.error ||
-              "No image returned from API. Expected image_b64 (preferred) or images[]."
-          );
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Failed to generate image' }));
+          throw new Error(errorData.error || 'Failed to generate image');
         }
 
-        setDesignImages((prev) => ({ ...prev, [kind]: imageUrl }));
+        const data = await response.json();
         
-        // Save design to database
-        const ratio = kind === "bold_text_card" ? "1:1" : kind === "reel_cover" ? "9:16" : "4:5";
-        await supabase
-          .from("designs")
-          .insert({
-            content_item_id: contentItemId,
-            format: ratio,
-            design_json: { kind, ratio, imageUrl: imageUrl.substring(0, 100) } as any, // Don't store full base64 in JSON
-          });
+        if (!data.image_b64) {
+          throw new Error('No image returned from API');
+        }
+
+        setDesignImages((prev) => ({ ...prev, [kind]: data.image_b64 }));
+        
+        // Save design to database if we have a content item
+        if (contentItemId) {
+          const ratio = kind === "bold_text_card" ? "1:1" : kind === "reel_cover" ? "9:16" : "4:5";
+          await supabase
+            .from("designs")
+            .insert({
+              content_item_id: contentItemId,
+              format: ratio,
+              design_json: { kind, ratio, prompt: prompt.substring(0, 500) } as any,
+            });
+        }
 
         toast({
-          title: "Generated",
-          description: "Design image updated.",
+          title: "Image generated",
+          description: "Design image ready.",
         });
       } catch (e) {
         toast({
-          title: "Design generation failed",
-          description: e instanceof Error ? e.message : "Could not generate design image.",
+          title: "Image generation failed",
+          description: e instanceof Error ? e.message : "Could not generate image.",
           variant: "destructive",
         });
       } finally {
         setIsGeneratingDesignKind(null);
       }
     },
-    [user, session, contentItemId, onePagerBlocks, toast]
+    [user, contentItemId, designPrompts, toast]
+  );
+
+  // Update design prompt (for editing in textarea)
+  const setDesignPrompt = useCallback((kind: DesignAssetKind, prompt: string) => {
+    setDesignPrompts((prev) => ({ ...prev, [kind]: prompt }));
+  }, []);
+
+  // Legacy: Generate Design Asset (keeping for backwards compatibility if needed)
+  const generateDesign = useCallback(
+    async (kind: DesignAssetKind) => {
+      // Now just calls the 2-step flow: generate prompt then image
+      await generateDesignPrompt(kind);
+    },
+    [generateDesignPrompt]
   );
 
   // Step 4: Export single image
@@ -554,9 +638,11 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     script,
     onePagerBlocks,
     designImages,
+    designPrompts,
     isGenerating,
     isSaving,
     isGeneratingDesignKind,
+    isGeneratingPromptKind,
 
     // Computed
     wordCount,
@@ -574,11 +660,14 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     setHook,
     setAudience,
     setScript,
+    setDesignPrompt,
 
     // Actions
     generateScript: generateScriptAction,
     generateOnePager: generateOnePagerAction,
     generateDesign,
+    generateDesignPrompt,
+    generateDesignImage,
     exportOnePagerPng,
     viewOnePagerNewTab,
     exportSingleImage,
