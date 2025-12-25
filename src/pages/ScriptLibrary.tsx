@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Plus, FileText, Search, Copy, Trash2, Pencil, CheckCircle, Filter } from "lucide-react";
+import { Plus, FileText, Search, Copy, Trash2, Pencil, CheckCircle, Filter, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,6 +51,7 @@ const statusColors: Record<ScriptStatus, string> = {
 type SortOption = "newest" | "oldest" | "updated" | "title";
 
 export default function ScriptLibrary() {
+  const navigate = useNavigate();
   const { 
     scripts, 
     isLoading, 
@@ -177,6 +179,9 @@ export default function ScriptLibrary() {
     // Use hook + body for TTS text
     const text = script.hook ? `${script.hook}\n\n${script.body}` : script.body;
     await generateTTS.mutateAsync({ scriptId, text });
+  };
+  const handleCreateContent = (scriptId: string) => {
+    navigate(`/content-factory?importScript=${scriptId}`);
   };
 
   return (
@@ -421,17 +426,28 @@ export default function ScriptLibrary() {
                   <span className="text-xs text-muted-foreground">
                     {format(new Date(script.created_at), "MMM d, yyyy")}
                   </span>
-                  {script.status !== "used" && (
+                  <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
                       className="h-7 text-xs text-primary hover:text-primary hover:bg-primary/10"
-                      onClick={() => handleMarkUsed(script.id)}
+                      onClick={() => handleCreateContent(script.id)}
                     >
-                      <CheckCircle className="h-3.5 w-3.5 mr-1" />
-                      Mark Used
+                      <Wand2 className="h-3.5 w-3.5 mr-1" />
+                      Create Content
                     </Button>
-                  )}
+                    {script.status !== "used" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => handleMarkUsed(script.id)}
+                      >
+                        <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                        Mark Used
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
