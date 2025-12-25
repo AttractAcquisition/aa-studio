@@ -35,6 +35,21 @@ type DeviceInfo = {
   label: string;
 };
 
+type AspectRatioOption = {
+  label: string;
+  value: string;
+  width: number;
+  height: number;
+  aspectClass: string;
+};
+
+const ASPECT_RATIO_OPTIONS: AspectRatioOption[] = [
+  { label: "9:16 (1080×1920)", value: "9:16", width: 1080, height: 1920, aspectClass: "aspect-[9/16]" },
+  { label: "4:5 (1080×1350)", value: "4:5", width: 1080, height: 1350, aspectClass: "aspect-[4/5]" },
+  { label: "1:1 (1080×1080)", value: "1:1", width: 1080, height: 1080, aspectClass: "aspect-square" },
+  { label: "16:9 (1920×1080)", value: "16:9", width: 1920, height: 1080, aspectClass: "aspect-video" },
+];
+
 export default function RecordingStudio() {
   const { user } = useAuth();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -58,6 +73,10 @@ export default function RecordingStudio() {
   const [audioDevices, setAudioDevices] = useState<DeviceInfo[]>([]);
   const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>("");
   const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>("");
+  
+  // Aspect ratio selection
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<string>("9:16");
+  const currentRatio = ASPECT_RATIO_OPTIONS.find(r => r.value === selectedAspectRatio) || ASPECT_RATIO_OPTIONS[0];
 
   // Enumerate available devices
   const enumerateDevices = useCallback(async () => {
@@ -272,6 +291,8 @@ export default function RecordingStudio() {
         mime: "video/webm",
         bytes: recordedBlob.size,
         platform: "instagram",
+        // Store aspect ratio metadata in description as JSON
+        description: JSON.stringify({ aspect_ratio: selectedAspectRatio, resolution: `${currentRatio.width}x${currentRatio.height}` }),
       });
 
       if (dbError) throw dbError;
@@ -409,7 +430,7 @@ export default function RecordingStudio() {
                     </div>
                   )}
 
-                  {/* Microphone Selector */}
+                {/* Microphone Selector */}
                   {audioDevices.length > 0 && (
                     <div>
                       <Label className="text-muted-foreground mb-2 block">Microphone</Label>
@@ -428,12 +449,32 @@ export default function RecordingStudio() {
                     </div>
                   )}
                 </div>
+                
+                {/* Aspect Ratio Selector */}
+                <div className="mt-4">
+                  <Label className="text-muted-foreground mb-2 block">Aspect Ratio</Label>
+                  <Select value={selectedAspectRatio} onValueChange={setSelectedAspectRatio}>
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="Select aspect ratio..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ASPECT_RATIO_OPTIONS.map((ratio) => (
+                        <SelectItem key={ratio.value} value={ratio.value}>
+                          {ratio.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    This crops the preview + export frame. Source camera may vary.
+                  </p>
+                </div>
               </div>
             )}
 
             {/* Video Preview */}
             <div className="aa-card">
-              <div className={`${recordingMode === "screen" ? "aspect-video" : "aspect-[9/16] max-h-[60vh]"} mx-auto rounded-2xl overflow-hidden bg-black relative`}>
+              <div className={`${recordingMode === "screen" ? "aspect-video" : currentRatio.aspectClass} max-h-[60vh] mx-auto rounded-2xl overflow-hidden bg-black relative`}>
                 {recordingState === "preview" && recordedUrl ? (
                   <video
                     ref={previewRef}
