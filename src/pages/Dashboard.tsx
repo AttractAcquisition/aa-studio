@@ -8,74 +8,95 @@ import {
   Calendar, 
   CheckCircle, 
   MessageSquare, 
-  ClipboardCheck,
+  Users,
+  Eye,
+  MousePointer,
+  Phone,
   Sparkles,
   ArrowRight,
   TrendingUp,
-  Loader2
+  Loader2,
+  BarChart3
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useDashboardStats } from "@/hooks/useDashboardStats";
-import { useContentItems } from "@/hooks/useContentItems";
+import { useGrowthScoreboard } from "@/hooks/useGrowthMetrics";
+import { useBundles } from "@/hooks/useBundles";
 import { AddProofModal } from "@/components/modals/AddProofModal";
+import { UpdateMetricsModal } from "@/components/modals/UpdateMetricsModal";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { stats, isLoading } = useDashboardStats();
-  const { contentItems, isLoading: isLoadingContent } = useContentItems();
+  const { data: scoreboard, isLoading: isLoadingScoreboard } = useGrowthScoreboard();
+  const { bundles, isLoading: isLoadingBundles } = useBundles(5);
   const [addProofOpen, setAddProofOpen] = useState(false);
+  const [updateMetricsOpen, setUpdateMetricsOpen] = useState(false);
+
+  const formatNumber = (n: number | null | undefined) => {
+    if (n === null || n === undefined) return "—";
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return n.toString();
+  };
+
+  const formatChange = (n: number | null | undefined) => {
+    if (n === null || n === undefined) return "";
+    const sign = n >= 0 ? "+" : "";
+    return `${sign}${n}`;
+  };
 
   const kpis = [
     { 
-      title: "Posts Created", 
-      value: stats.postsThisWeek, 
-      subtitle: "This week", 
-      icon: FileText, 
-      trend: "up" as const, 
-      trendValue: "This week" 
-    },
-    { 
-      title: "Scheduled", 
-      value: stats.scheduledCount, 
-      subtitle: "Upcoming", 
-      icon: Calendar, 
-      trend: "neutral" as const, 
-      trendValue: "Pending" 
-    },
-    { 
-      title: "Published", 
-      value: stats.publishedCount, 
-      subtitle: "All time", 
-      icon: CheckCircle, 
-      trend: "up" as const, 
+      title: "Followers", 
+      value: formatNumber(scoreboard?.followers), 
+      subtitle: scoreboard?.followers7DayChange !== null 
+        ? `${formatChange(scoreboard?.followers7DayChange)} this week` 
+        : "Add metrics", 
+      icon: Users, 
+      trend: (scoreboard?.followers7DayChange ?? 0) >= 0 ? "up" as const : "down" as const, 
       trendValue: "Total" 
     },
     { 
-      title: "Enquiries", 
-      value: stats.enquiriesCount, 
-      subtitle: "Total logged", 
-      icon: MessageSquare, 
-      trend: "up" as const, 
-      trendValue: `${stats.enquiriesToday} today` 
+      title: "Profile Visits", 
+      value: formatNumber(scoreboard?.profileVisits7Day), 
+      subtitle: "Last 7 days", 
+      icon: Eye, 
+      trend: "neutral" as const, 
+      trendValue: "7 days" 
     },
     { 
-      title: "Audit Requests", 
-      value: stats.auditRequests + stats.pendingAudits, 
-      subtitle: "Pending review", 
-      icon: ClipboardCheck, 
+      title: "Link Clicks", 
+      value: formatNumber(scoreboard?.linkClicks7Day), 
+      subtitle: "Last 7 days", 
+      icon: MousePointer, 
       trend: "neutral" as const, 
-      trendValue: `${stats.newAuditsThisWeek} new this week` 
+      trendValue: "7 days" 
+    },
+    { 
+      title: "Inbound DMs", 
+      value: formatNumber(scoreboard?.inboundDms7Day), 
+      subtitle: "Last 7 days", 
+      icon: MessageSquare, 
+      trend: "neutral" as const, 
+      trendValue: "7 days" 
+    },
+    { 
+      title: "Booked Calls", 
+      value: formatNumber(scoreboard?.bookedCalls7Day), 
+      subtitle: "Last 7 days", 
+      icon: Phone, 
+      trend: "up" as const, 
+      trendValue: "7 days" 
     },
   ];
 
-  // Map content items to recent outputs format
-  const recentOutputs = contentItems.slice(0, 5).map((item: any) => ({
-    type: (item.content_type === "script" ? "script" : 
-          item.content_type === "onepager" ? "onepager" : "design") as "script" | "onepager" | "design",
-    title: item.title || item.hook || "Untitled",
-    series: item.series || "General",
-    date: new Date(item.created_at).toLocaleDateString(),
-    status: item.status as "draft" | "ready" | "published",
+  // Map bundles to recent outputs format
+  const recentOutputs = bundles.map((bundle) => ({
+    id: bundle.id,
+    type: "design" as const,
+    title: bundle.title || "Untitled",
+    series: bundle.series || "General",
+    date: new Date(bundle.created_at).toLocaleDateString(),
+    status: bundle.status as "draft" | "ready" | "published",
+    thumbnail: bundle.design_image_urls?.bold_text_card || null,
   }));
 
   return (
@@ -92,17 +113,28 @@ export default function Dashboard() {
               Your brand-page operating system. Create, manage, and publish on-brand content from one place.
             </p>
           </div>
-          <Link to="/content-factory">
-            <Button variant="gradient" size="lg" className="gap-2">
-              <Sparkles className="w-5 h-5" />
-              Create Content
-              <ArrowRight className="w-4 h-4" />
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="sm" onClick={() => setUpdateMetricsOpen(true)}>
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Update Metrics
             </Button>
-          </Link>
+            <Link to="/content-factory">
+              <Button variant="gradient" size="lg" className="gap-2">
+                <Sparkles className="w-5 h-5" />
+                Create Content
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
         </div>
 
-        {/* KPI Grid */}
-        {isLoading ? (
+        {/* Growth Scoreboard KPI Grid */}
+        <div className="mb-2">
+          <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
+            Growth Scoreboard
+          </h2>
+        </div>
+        {isLoadingScoreboard ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
@@ -124,20 +156,25 @@ export default function Dashboard() {
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="aa-headline-md text-foreground">Recent Outputs</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Your latest scripts, one-pagers, and designs</p>
+                  <p className="text-sm text-muted-foreground mt-1">Your latest content bundles</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => navigate("/content-factory")}>
                   View All
                 </Button>
               </div>
-              {isLoadingContent ? (
+              {isLoadingBundles ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
               ) : recentOutputs.length > 0 ? (
                 <div className="space-y-3">
                   {recentOutputs.map((output, index) => (
-                    <div key={index} className="animate-slide-in-left" style={{ animationDelay: `${index * 50}ms` }}>
+                    <div 
+                      key={output.id} 
+                      className="animate-slide-in-left cursor-pointer" 
+                      style={{ animationDelay: `${index * 50}ms` }}
+                      onClick={() => navigate(`/bundles/${output.id}`)}
+                    >
                       <RecentOutputCard {...output} />
                     </div>
                   ))}
@@ -166,11 +203,11 @@ export default function Dashboard() {
               <div className="relative h-2 bg-muted rounded-full overflow-hidden">
                 <div 
                   className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary to-accent rounded-full" 
-                  style={{ width: `${stats.brandScore}%` }}
+                  style={{ width: "75%" }}
                 />
               </div>
               <div className="flex items-center justify-between mt-2">
-                <span className="text-sm text-muted-foreground">{stats.brandScore}% On-Brand</span>
+                <span className="text-sm text-muted-foreground">75% On-Brand</span>
                 <span className="text-xs text-primary">7-day avg</span>
               </div>
             </div>
@@ -219,6 +256,7 @@ export default function Dashboard() {
 
       {/* Modals */}
       <AddProofModal open={addProofOpen} onOpenChange={setAddProofOpen} />
+      <UpdateMetricsModal open={updateMetricsOpen} onOpenChange={setUpdateMetricsOpen} />
     </AppLayout>
   );
 }

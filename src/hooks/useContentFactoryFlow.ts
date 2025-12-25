@@ -58,6 +58,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
   // Step state
   const [currentStep, setCurrentStep] = useState(1);
   const [contentItemId, setContentItemId] = useState<string | null>(null);
+  const [bundleId, setBundleId] = useState<string | null>(null);
 
   // Input state
   const [contentType, setContentType] = useState("");
@@ -95,10 +96,25 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
   const estSeconds = Math.round(wordCount * 0.4);
   const seriesLabel = series ? series.split("-").join(" ") : "Attraction Audit";
 
+  // Helper to update bundle
+  const updateBundle = useCallback(async (data: Record<string, any>) => {
+    if (!bundleId || !user) return;
+    try {
+      await supabase
+        .from("content_bundles")
+        .update(data)
+        .eq("id", bundleId)
+        .eq("user_id", user.id);
+    } catch (e) {
+      console.error("Failed to update bundle:", e);
+    }
+  }, [bundleId, user]);
+
   // Reset all state
   const resetState = useCallback(() => {
     setCurrentStep(1);
     setContentItemId(null);
+    setBundleId(null);
     setContentType("");
     setSeries("");
     setHook("");
@@ -237,6 +253,26 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       }
 
       setScript(scriptText);
+      
+      // Create bundle if missing
+      const title = hook || `${contentType} - ${series}`;
+      const { data: newBundle, error: bundleError } = await supabase
+        .from("content_bundles")
+        .insert({
+          user_id: user.id,
+          title,
+          series,
+          content_type: contentType,
+          audience,
+          hook: hook || null,
+          script: scriptText,
+        })
+        .select()
+        .single();
+      
+      if (!bundleError && newBundle) {
+        setBundleId(newBundle.id);
+      }
       
       // Save script to database
       const wc = scriptText.trim().split(/\s+/).filter(Boolean).length;
@@ -592,6 +628,17 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
         }
 
         setDesignImages((prev) => ({ ...prev, [kind]: data.image_data_url }));
+        
+        // Update bundle with design image
+        if (bundleId) {
+          const currentImages = designImages || {};
+          await supabase
+            .from("content_bundles")
+            .update({
+              design_image_urls: { ...currentImages, [kind]: data.image_data_url },
+            })
+            .eq("id", bundleId);
+        }
         
         // Save design to database if we have a content item
         if (contentItemId) {

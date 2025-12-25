@@ -163,6 +163,75 @@ export type Database = {
         }
         Relationships: []
       }
+      content_bundles: {
+        Row: {
+          audience: string | null
+          caption: string | null
+          content_type: string | null
+          created_at: string
+          cta: string | null
+          design_image_urls: Json | null
+          design_prompts: Json | null
+          export_urls: Json | null
+          hook: string | null
+          id: string
+          one_pager_export_png_url: string | null
+          one_pager_layout_json: Json | null
+          published_at: string | null
+          scheduled_at: string | null
+          script: string | null
+          series: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          audience?: string | null
+          caption?: string | null
+          content_type?: string | null
+          created_at?: string
+          cta?: string | null
+          design_image_urls?: Json | null
+          design_prompts?: Json | null
+          export_urls?: Json | null
+          hook?: string | null
+          id?: string
+          one_pager_export_png_url?: string | null
+          one_pager_layout_json?: Json | null
+          published_at?: string | null
+          scheduled_at?: string | null
+          script?: string | null
+          series?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          audience?: string | null
+          caption?: string | null
+          content_type?: string | null
+          created_at?: string
+          cta?: string | null
+          design_image_urls?: Json | null
+          design_prompts?: Json | null
+          export_urls?: Json | null
+          hook?: string | null
+          id?: string
+          one_pager_export_png_url?: string | null
+          one_pager_layout_json?: Json | null
+          published_at?: string | null
+          scheduled_at?: string | null
+          script?: string | null
+          series?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       content_runs: {
         Row: {
           brief_json: Json | null
@@ -424,6 +493,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      growth_metrics_daily: {
+        Row: {
+          booked_calls: number | null
+          created_at: string
+          date: string
+          followers: number | null
+          id: string
+          inbound_dms: number | null
+          link_clicks: number | null
+          profile_visits: number | null
+          user_id: string
+        }
+        Insert: {
+          booked_calls?: number | null
+          created_at?: string
+          date: string
+          followers?: number | null
+          id?: string
+          inbound_dms?: number | null
+          link_clicks?: number | null
+          profile_visits?: number | null
+          user_id: string
+        }
+        Update: {
+          booked_calls?: number | null
+          created_at?: string
+          date?: string
+          followers?: number | null
+          id?: string
+          inbound_dms?: number | null
+          link_clicks?: number | null
+          profile_visits?: number | null
+          user_id?: string
+        }
+        Relationships: []
       }
       leads: {
         Row: {
