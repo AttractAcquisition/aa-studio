@@ -2,3 +2,9 @@ project_id = "dwhmvzooerxejustfqpt"
 
 [functions.generate-tts]
 verify_jwt = false
+
+[functions.generate-design-prompt]
+verify_jwt = false
+
+[functions.generate-design-image]
+verify_jwt = false

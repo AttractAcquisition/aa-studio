@@ -63,6 +63,12 @@ export type DesignImages = {
   one_pager_cover?: string | null;
 };
 
+export type DesignPrompts = {
+  bold_text_card?: string | null;
+  reel_cover?: string | null;
+  one_pager_cover?: string | null;
+};
+
 export type ContentFactoryInputs = {
   contentType: string;
   series: string;

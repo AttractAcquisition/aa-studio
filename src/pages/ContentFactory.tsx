@@ -60,9 +60,11 @@ export default function ContentFactory() {
     script,
     onePagerBlocks,
     designImages,
+    designPrompts,
     isGenerating,
     isSaving,
     isGeneratingDesignKind,
+    isGeneratingPromptKind,
     wordCount,
     isWordCountValid,
     estSeconds,
@@ -74,9 +76,11 @@ export default function ContentFactory() {
     setHook,
     setAudience,
     setScript,
+    setDesignPrompt,
     generateScript,
     generateOnePager,
-    generateDesign,
+    generateDesignPrompt,
+    generateDesignImage,
     exportOnePagerPng,
     viewOnePagerNewTab,
     exportSingleImage,
@@ -86,6 +90,10 @@ export default function ContentFactory() {
   const boldImg = designImages.bold_text_card;
   const reelImg = designImages.reel_cover;
   const coverImg = designImages.one_pager_cover;
+
+  const boldPrompt = designPrompts.bold_text_card || "";
+  const reelPrompt = designPrompts.reel_cover || "";
+  const coverPrompt = designPrompts.one_pager_cover || "";
 
   return (
     <AppLayout>
@@ -406,8 +414,8 @@ export default function ContentFactory() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Bold Text Card */}
-                <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="rounded-3xl border border-border/40 bg-card/50 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
                     <div>
                       <div className="font-semibold">Bold Text Card</div>
                       <div className="text-xs text-muted-foreground">1:1 square</div>
@@ -424,6 +432,7 @@ export default function ContentFactory() {
                     </Button>
                   </div>
 
+                  {/* Image Preview */}
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
                     <div className="aspect-square w-full rounded-2xl overflow-hidden bg-[#0B0F19] flex items-center justify-center">
                       {boldImg ? (
@@ -434,18 +443,50 @@ export default function ContentFactory() {
                         />
                       ) : (
                         <div className="text-white/60 text-sm px-6 text-center">
-                          Generate to preview image.
+                          Generate prompt, then generate image.
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-4 flex gap-2">
+                  {/* Prompt Editor */}
+                  {boldPrompt && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Prompt (editable)</label>
+                      <Textarea
+                        value={boldPrompt}
+                        onChange={(e) => setDesignPrompt("bold_text_card", e.target.value)}
+                        className="min-h-[80px] text-xs"
+                        placeholder="Generated prompt will appear here..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => generateDesignPrompt("bold_text_card")}
+                      disabled={isGeneratingPromptKind === "bold_text_card"}
+                    >
+                      {isGeneratingPromptKind === "bold_text_card" ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Generate Prompt
+                        </>
+                      )}
+                    </Button>
                     <Button
                       variant="gradient"
                       className="flex-1"
-                      onClick={() => generateDesign("bold_text_card")}
-                      disabled={isGeneratingDesignKind === "bold_text_card"}
+                      onClick={() => generateDesignImage("bold_text_card", boldPrompt)}
+                      disabled={!boldPrompt || isGeneratingDesignKind === "bold_text_card"}
                     >
                       {isGeneratingDesignKind === "bold_text_card" ? (
                         <>
@@ -453,15 +494,18 @@ export default function ContentFactory() {
                           Generating...
                         </>
                       ) : (
-                        "Generate Bold Text Card"
+                        <>
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Generate Image
+                        </>
                       )}
                     </Button>
                   </div>
                 </div>
 
                 {/* Reel Cover */}
-                <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="rounded-3xl border border-border/40 bg-card/50 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
                     <div>
                       <div className="font-semibold">Reel Cover</div>
                       <div className="text-xs text-muted-foreground">9:16</div>
@@ -478,6 +522,7 @@ export default function ContentFactory() {
                     </Button>
                   </div>
 
+                  {/* Image Preview */}
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
                     <div className="aspect-[9/16] w-full rounded-2xl overflow-hidden bg-[#0B0F19] flex items-center justify-center">
                       {reelImg ? (
@@ -488,18 +533,50 @@ export default function ContentFactory() {
                         />
                       ) : (
                         <div className="text-white/60 text-sm px-6 text-center">
-                          Generate to preview image.
+                          Generate prompt, then generate image.
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-4 flex gap-2">
+                  {/* Prompt Editor */}
+                  {reelPrompt && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Prompt (editable)</label>
+                      <Textarea
+                        value={reelPrompt}
+                        onChange={(e) => setDesignPrompt("reel_cover", e.target.value)}
+                        className="min-h-[80px] text-xs"
+                        placeholder="Generated prompt will appear here..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => generateDesignPrompt("reel_cover")}
+                      disabled={isGeneratingPromptKind === "reel_cover"}
+                    >
+                      {isGeneratingPromptKind === "reel_cover" ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Generate Prompt
+                        </>
+                      )}
+                    </Button>
                     <Button
                       variant="gradient"
                       className="flex-1"
-                      onClick={() => generateDesign("reel_cover")}
-                      disabled={isGeneratingDesignKind === "reel_cover"}
+                      onClick={() => generateDesignImage("reel_cover", reelPrompt)}
+                      disabled={!reelPrompt || isGeneratingDesignKind === "reel_cover"}
                     >
                       {isGeneratingDesignKind === "reel_cover" ? (
                         <>
@@ -507,15 +584,18 @@ export default function ContentFactory() {
                           Generating...
                         </>
                       ) : (
-                        "Generate Reel Cover"
+                        <>
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Generate Image
+                        </>
                       )}
                     </Button>
                   </div>
                 </div>
 
                 {/* One-Pager Cover */}
-                <div className="rounded-3xl border border-border/40 bg-card/50 p-5">
-                  <div className="flex items-center justify-between mb-4">
+                <div className="rounded-3xl border border-border/40 bg-card/50 p-5 space-y-4">
+                  <div className="flex items-center justify-between">
                     <div>
                       <div className="font-semibold">One-Pager Cover</div>
                       <div className="text-xs text-muted-foreground">4:5</div>
@@ -532,6 +612,7 @@ export default function ContentFactory() {
                     </Button>
                   </div>
 
+                  {/* Image Preview */}
                   <div className="rounded-2xl border border-border/40 bg-[#0B0F19] p-4">
                     <div className="aspect-[4/5] w-full rounded-2xl overflow-hidden bg-[#0B0F19] flex items-center justify-center">
                       {coverImg ? (
@@ -542,18 +623,50 @@ export default function ContentFactory() {
                         />
                       ) : (
                         <div className="text-white/60 text-sm px-6 text-center">
-                          Generate to preview image.
+                          Generate prompt, then generate image.
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-4 flex gap-2">
+                  {/* Prompt Editor */}
+                  {coverPrompt && (
+                    <div className="space-y-2">
+                      <label className="text-xs text-muted-foreground">Prompt (editable)</label>
+                      <Textarea
+                        value={coverPrompt}
+                        onChange={(e) => setDesignPrompt("one_pager_cover", e.target.value)}
+                        className="min-h-[80px] text-xs"
+                        placeholder="Generated prompt will appear here..."
+                      />
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => generateDesignPrompt("one_pager_cover")}
+                      disabled={isGeneratingPromptKind === "one_pager_cover"}
+                    >
+                      {isGeneratingPromptKind === "one_pager_cover" ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="w-4 h-4 mr-2" />
+                          Generate Prompt
+                        </>
+                      )}
+                    </Button>
                     <Button
                       variant="gradient"
                       className="flex-1"
-                      onClick={() => generateDesign("one_pager_cover")}
-                      disabled={isGeneratingDesignKind === "one_pager_cover"}
+                      onClick={() => generateDesignImage("one_pager_cover", coverPrompt)}
+                      disabled={!coverPrompt || isGeneratingDesignKind === "one_pager_cover"}
                     >
                       {isGeneratingDesignKind === "one_pager_cover" ? (
                         <>
@@ -561,7 +674,10 @@ export default function ContentFactory() {
                           Generating...
                         </>
                       ) : (
-                        "Generate One-Pager Cover"
+                        <>
+                          <ImageIcon className="w-4 h-4 mr-2" />
+                          Generate Image
+                        </>
                       )}
                     </Button>
                   </div>
