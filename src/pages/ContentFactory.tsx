@@ -443,25 +443,37 @@ export default function ContentFactory() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </Button>
-                <Button
-                  variant="gradient"
-                  size="lg"
-                  onClick={generateOnePagerLayout}
-                  disabled={isGeneratingLayout || !script}
-                >
-                  {isGeneratingLayout ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Generating Layout...
-                    </>
-                  ) : (
-                    <>
-                      <FileJson className="w-4 h-4 mr-2" />
-                      Generate Layout (JSON)
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </>
-                  )}
-                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setCurrentStep(4)}
+                    disabled={!script}
+                  >
+                    <ImageIcon className="w-4 h-4 mr-2" />
+                    Generate Designs
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                  <Button
+                    variant="gradient"
+                    size="lg"
+                    onClick={generateOnePagerLayout}
+                    disabled={isGeneratingLayout || !script}
+                  >
+                    {isGeneratingLayout ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <FileJson className="w-4 h-4 mr-2" />
+                        Generate One-Pager
+                        <ArrowRight className="w-4 h-4 ml-2" />
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
@@ -909,7 +921,7 @@ export default function ContentFactory() {
                   variant="gradient"
                   size="lg"
                   onClick={saveAndExportAll}
-                  disabled={isSaving || !onePagerBlocks?.length}
+                  disabled={isSaving || (!boldImg && !reelImg && !coverImg)}
                 >
                   {isSaving ? (
                     <>

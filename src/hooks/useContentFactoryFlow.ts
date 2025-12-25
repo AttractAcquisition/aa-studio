@@ -673,10 +673,12 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       return;
     }
 
-    if (!onePagerBlocks?.length) {
+    // Check for either new layout system or legacy blocks
+    const hasContent = onePagerLayout !== null || (onePagerBlocks && onePagerBlocks.length > 0);
+    if (!hasContent && !script) {
       toast({
         title: "Nothing to export",
-        description: "Generate the one-pager first.",
+        description: "Generate content first.",
         variant: "destructive",
       });
       return;
@@ -784,6 +786,8 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
   }, [
     user,
     onePagerBlocks,
+    onePagerLayout,
+    script,
     designImages,
     hook,
     contentType,
