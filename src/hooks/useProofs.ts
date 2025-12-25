@@ -96,14 +96,19 @@ export function useProofs() {
   const updateProof = useMutation({
     mutationFn: async ({
       id,
-      is_blurred,
+      ...updates
     }: {
       id: string;
-      is_blurred: boolean;
+      is_blurred?: boolean;
+      headline?: string;
+      industry?: string;
+      metric?: string;
+      score?: number;
+      happened_at?: string;
     }) => {
       const { data, error } = await supabase
         .from("proofs")
-        .update({ is_blurred })
+        .update(updates)
         .eq("id", id)
         .select()
         .single();

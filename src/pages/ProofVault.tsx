@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,9 @@ import {
   CalendarPlus,
   Download,
   RefreshCw,
-  Trash2
+  Trash2,
+  Pencil,
+  Upload
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProofs } from "@/hooks/useProofs";
@@ -24,7 +26,10 @@ import { useProofCards } from "@/hooks/useProofCards";
 import { useScheduledPosts } from "@/hooks/useScheduledPosts";
 import { AddProofModal } from "@/components/modals/AddProofModal";
 import { ProofScreenshotModal } from "@/components/modals/ProofScreenshotModal";
+import { EditProofModal } from "@/components/modals/EditProofModal";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,18 +42,24 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function ProofVault() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [addProofOpen, setAddProofOpen] = useState(false);
   const [viewProof, setViewProof] = useState<any>(null);
+  const [editProof, setEditProof] = useState<any>(null);
+  const [deleteProofId, setDeleteProofId] = useState<string | null>(null);
   const [generatingProofCardId, setGeneratingProofCardId] = useState<string | null>(null);
   const [regeneratingCardId, setRegeneratingCardId] = useState<string | null>(null);
   const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
+  const [replacingCardId, setReplacingCardId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { proofs, stats, isLoading, updateProof } = useProofs();
+  const { proofs, stats, isLoading, updateProof, deleteProof } = useProofs();
   const { 
     proofCards, 
     createProofCard, 
-    regenerateProofCardImage, 
+    regenerateProofCardImage,
+    updateProofCard,
     deleteProofCard,
     isCreating: isCreatingProofCard 
   } = useProofCards();
@@ -107,6 +118,58 @@ export default function ProofVault() {
       toast.error("Failed to delete proof card");
     } finally {
       setDeleteCardId(null);
+    }
+  };
+
+  const handleDeleteProof = async () => {
+    if (!deleteProofId) return;
+    try {
+      deleteProof(deleteProofId);
+      toast.success("Proof deleted");
+    } catch (error) {
+      toast.error("Failed to delete proof");
+    } finally {
+      setDeleteProofId(null);
+    }
+  };
+
+  const handleEditProofSave = async (data: any) => {
+    updateProof(data);
+    toast.success("Proof updated");
+  };
+
+  const handleReplacePreviewImage = async (cardId: string, file: File) => {
+    if (!user) return;
+    setReplacingCardId(cardId);
+    try {
+      const path = `${user.id}/proof-cards/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("aa-designs")
+        .upload(path, file);
+      if (uploadError) throw uploadError;
+
+      // Create asset row
+      const { data: asset, error: assetError } = await supabase
+        .from("assets")
+        .insert({
+          user_id: user.id,
+          bucket: "aa-designs",
+          path,
+          kind: "image",
+          title: "Proof Card Preview",
+          tags: ["proof-card"],
+        })
+        .select()
+        .single();
+      if (assetError) throw assetError;
+
+      // Update proof card with new asset
+      updateProofCard({ id: cardId, asset_id: asset.id });
+      toast.success("Preview image replaced!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to replace image");
+    } finally {
+      setReplacingCardId(null);
     }
   };
 
@@ -266,7 +329,7 @@ export default function ProofVault() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-3 mt-4">
+                      <div className="flex items-center gap-3 mt-4 flex-wrap">
                         <Button 
                           variant="outline" 
                           size="sm"
@@ -278,6 +341,14 @@ export default function ProofVault() {
                         >
                           <Eye className="w-4 h-4 mr-1" />
                           View
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => setEditProof(proof)}
+                        >
+                          <Pencil className="w-4 h-4 mr-1" />
+                          Edit
                         </Button>
                         <Button 
                           variant="outline" 
@@ -299,6 +370,14 @@ export default function ProofVault() {
                             <LayoutTemplate className="w-4 h-4 mr-1" />
                           )}
                           Generate Proof Card
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDeleteProofId(proof.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
@@ -338,6 +417,7 @@ export default function ProofVault() {
                             className="h-8 w-8"
                             onClick={() => handleRegenerateCard(card.id)}
                             disabled={regeneratingCardId === card.id}
+                            title="Regenerate image"
                           >
                             {regeneratingCardId === card.id ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -349,7 +429,25 @@ export default function ProofVault() {
                             variant="secondary"
                             size="icon"
                             className="h-8 w-8"
+                            onClick={() => {
+                              setReplacingCardId(card.id);
+                              fileInputRef.current?.click();
+                            }}
+                            disabled={replacingCardId === card.id}
+                            title="Replace preview image"
+                          >
+                            {replacingCardId === card.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Upload className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8"
                             onClick={() => setDeleteCardId(card.id)}
+                            title="Delete card"
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -405,6 +503,21 @@ export default function ProofVault() {
         )}
       </div>
 
+      {/* Hidden file input for replacing preview image */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file && replacingCardId) {
+            handleReplacePreviewImage(replacingCardId, file);
+          }
+          e.target.value = "";
+        }}
+      />
+
       {/* Modals */}
       <AddProofModal open={addProofOpen} onOpenChange={setAddProofOpen} />
       <ProofScreenshotModal 
@@ -412,8 +525,14 @@ export default function ProofVault() {
         onOpenChange={(open) => !open && setViewProof(null)} 
         proof={viewProof} 
       />
+      <EditProofModal
+        open={!!editProof}
+        onOpenChange={(open) => !open && setEditProof(null)}
+        proof={editProof}
+        onSave={handleEditProofSave}
+      />
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Proof Card Confirmation Dialog */}
       <AlertDialog open={!!deleteCardId} onOpenChange={(open) => !open && setDeleteCardId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -425,6 +544,24 @@ export default function ProofVault() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteCard} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Proof Confirmation Dialog */}
+      <AlertDialog open={!!deleteProofId} onOpenChange={(open) => !open && setDeleteProofId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Proof?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this proof and its screenshot. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProof} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
