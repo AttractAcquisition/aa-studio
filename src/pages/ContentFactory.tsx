@@ -23,6 +23,9 @@ import {
   RefreshCw,
   Download,
   ExternalLink,
+  Code,
+  Eye,
+  FileJson,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExports } from "@/hooks/useExports";
@@ -30,7 +33,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useContentFactoryFlow } from "@/hooks/useContentFactoryFlow";
 import { AaOnePagerDocument } from "@/components/onepager/AaOnePagerDocument";
+import { OnePagerRenderer } from "@/components/onepager/OnePagerRenderer";
 import { CONTENT_TYPES, SERIES_LIST, WORKFLOW_STEPS } from "@/types/content-factory";
+import { TEMPLATE_OPTIONS } from "@/lib/one-pager-templates";
+import type { OnePagerTemplateId } from "@/types/one-pager-layout";
+import { useState } from "react";
 
 const stepIcons = {
   1: FileText,
@@ -70,6 +77,12 @@ export default function ContentFactory() {
     estSeconds,
     seriesLabel,
     onePagerDocRef,
+    // New layout system
+    onePagerLayout,
+    onePagerLayoutJson,
+    onePagerLayoutError,
+    selectedTemplate,
+    isGeneratingLayout,
     setCurrentStep,
     setContentType,
     setSeries,
@@ -77,8 +90,11 @@ export default function ContentFactory() {
     setAudience,
     setScript,
     setDesignPrompt,
+    setSelectedTemplate,
     generateScript,
     generateOnePager,
+    generateOnePagerLayout,
+    updateLayoutFromJson,
     generateDesignPrompt,
     generateDesignImage,
     exportOnePagerPng,
@@ -87,6 +103,9 @@ export default function ContentFactory() {
     saveAndExportAll,
   } = flow;
 
+  // Toggle between JSON editor and preview
+  const [showJsonEditor, setShowJsonEditor] = useState(false);
+
   const boldImg = designImages.bold_text_card;
   const reelImg = designImages.reel_cover;
   const coverImg = designImages.one_pager_cover;
@@ -94,6 +113,9 @@ export default function ContentFactory() {
   const boldPrompt = designPrompts.bold_text_card || "";
   const reelPrompt = designPrompts.reel_cover || "";
   const coverPrompt = designPrompts.one_pager_cover || "";
+
+  // Check if we have a valid layout for the new system
+  const hasValidLayout = onePagerLayout !== null && !onePagerLayoutError;
 
   return (
     <AppLayout>
@@ -291,6 +313,33 @@ export default function ContentFactory() {
                 placeholder="Your script will appear here..."
               />
 
+              {/* Template Selector */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground mb-2 block">
+                    One-Pager Template
+                  </Label>
+                  <Select
+                    value={selectedTemplate}
+                    onValueChange={(val) => setSelectedTemplate(val as OnePagerTemplateId)}
+                  >
+                    <SelectTrigger className="h-12">
+                      <SelectValue placeholder="Select template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEMPLATE_OPTIONS.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <div className="flex flex-col">
+                            <span>{t.label}</span>
+                            <span className="text-xs text-muted-foreground">{t.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -299,17 +348,18 @@ export default function ContentFactory() {
                 <Button
                   variant="gradient"
                   size="lg"
-                  onClick={generateOnePager}
-                  disabled={isGenerating || !script}
+                  onClick={generateOnePagerLayout}
+                  disabled={isGeneratingLayout || !script}
                 >
-                  {isGenerating ? (
+                  {isGeneratingLayout ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
+                      Generating Layout...
                     </>
                   ) : (
                     <>
-                      Generate One-Pager
+                      <FileJson className="w-4 h-4 mr-2" />
+                      Generate Layout (JSON)
                       <ArrowRight className="w-4 h-4 ml-2" />
                     </>
                   )}
@@ -318,35 +368,44 @@ export default function ContentFactory() {
             </div>
           )}
 
-          {/* Step 3 */}
+          {/* Step 3 - New Block-Based One-Pager */}
           {currentStep === 3 && (
             <div className="space-y-6">
+              {/* Header */}
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="aa-headline-md text-foreground mb-2">
-                    One-Pager Preview
+                    One-Pager Layout
                   </h2>
                   <p className="text-muted-foreground">
-                    Only the generated document is shown (no block editing).
+                    Edit JSON or preview the rendered one-pager with cards, checklists, and more.
                   </p>
                 </div>
 
                 <div className="flex gap-2">
+                  {/* Toggle View */}
                   <Button
-                    variant="outline"
+                    variant={showJsonEditor ? "outline" : "secondary"}
                     size="sm"
-                    onClick={viewOnePagerNewTab}
-                    disabled={!onePagerBlocks?.length}
+                    onClick={() => setShowJsonEditor(false)}
                   >
-                    <ExternalLink className="w-4 h-4 mr-2" />
-                    View in new tab
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview
+                  </Button>
+                  <Button
+                    variant={showJsonEditor ? "secondary" : "outline"}
+                    size="sm"
+                    onClick={() => setShowJsonEditor(true)}
+                  >
+                    <Code className="w-4 h-4 mr-2" />
+                    JSON
                   </Button>
 
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={exportOnePagerPng}
-                    disabled={!onePagerBlocks?.length}
+                    disabled={!hasValidLayout}
                   >
                     <Download className="w-4 h-4 mr-2" />
                     Export PNG
@@ -354,30 +413,74 @@ export default function ContentFactory() {
                 </div>
               </div>
 
-              {!onePagerBlocks?.length ? (
-                <div className="rounded-2xl border border-border/40 p-6 text-muted-foreground">
-                  No one-pager yet. Go back and click "Generate One-Pager".
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">
-                    Document preview
-                  </div>
-
-                  <div className="rounded-3xl border border-border/40 bg-[#0B0F19] p-5">
-                    <div ref={onePagerDocRef}>
-                      <AaOnePagerDocument
-                        brand="Attract Acquisition"
-                        series={series}
-                        title={hook?.trim() ? hook.trim() : "One-Pager"}
-                        audience={audience}
-                        blocks={onePagerBlocks}
-                      />
-                    </div>
+              {/* Error Display */}
+              {onePagerLayoutError && (
+                <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-destructive">Layout Error</p>
+                    <p className="text-sm text-muted-foreground mt-1">{onePagerLayoutError}</p>
                   </div>
                 </div>
               )}
 
+              {/* JSON Editor View */}
+              {showJsonEditor && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-muted-foreground">Layout JSON (editable)</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={generateOnePagerLayout}
+                      disabled={isGeneratingLayout}
+                    >
+                      <RefreshCw className={cn("w-4 h-4 mr-2", isGeneratingLayout && "animate-spin")} />
+                      Regenerate
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={onePagerLayoutJson}
+                    onChange={(e) => updateLayoutFromJson(e.target.value)}
+                    className="min-h-[400px] font-mono text-sm"
+                    placeholder="Generated JSON will appear here..."
+                  />
+                </div>
+              )}
+
+              {/* Preview View */}
+              {!showJsonEditor && (
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">Live Preview</div>
+
+                  {!hasValidLayout && !onePagerLayoutJson ? (
+                    <div className="rounded-2xl border border-border/40 p-8 text-center text-muted-foreground">
+                      <FileJson className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p className="font-medium">No layout yet</p>
+                      <p className="text-sm mt-1">Go back and click "Generate Layout (JSON)" to create a one-pager.</p>
+                    </div>
+                  ) : hasValidLayout && onePagerLayout ? (
+                    <div className="rounded-3xl border border-border/40 bg-background p-5 max-h-[600px] overflow-y-auto scrollbar-hide">
+                      <div ref={onePagerDocRef}>
+                        <OnePagerRenderer
+                          layout={onePagerLayout}
+                          brand="Attract Acquisition"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-6 text-center">
+                      <AlertTriangle className="w-8 h-8 mx-auto mb-3 text-destructive" />
+                      <p className="font-medium text-destructive">Invalid Layout</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Switch to JSON view to fix the errors.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Navigation */}
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(2)}>
                   <ArrowLeft className="w-4 h-4 mr-2" />
@@ -388,7 +491,7 @@ export default function ContentFactory() {
                   variant="gradient"
                   size="lg"
                   onClick={() => setCurrentStep(4)}
-                  disabled={isGenerating || !onePagerBlocks?.length}
+                  disabled={!hasValidLayout}
                 >
                   Generate Designs
                   <ArrowRight className="w-4 h-4 ml-2" />
