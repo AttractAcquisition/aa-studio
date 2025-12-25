@@ -579,6 +579,51 @@ export type Database = {
           },
         ]
       }
+      script_library: {
+        Row: {
+          body: string
+          created_at: string
+          hook: string | null
+          id: string
+          last_used_at: string | null
+          platform: string
+          status: string
+          tags: string[] | null
+          title: string
+          updated_at: string
+          user_id: string
+          word_count: number | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          hook?: string | null
+          id?: string
+          last_used_at?: string | null
+          platform?: string
+          status?: string
+          tags?: string[] | null
+          title: string
+          updated_at?: string
+          user_id: string
+          word_count?: number | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          hook?: string | null
+          id?: string
+          last_used_at?: string | null
+          platform?: string
+          status?: string
+          tags?: string[] | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+          word_count?: number | null
+        }
+        Relationships: []
+      }
       scripts: {
         Row: {
           content_item_id: string

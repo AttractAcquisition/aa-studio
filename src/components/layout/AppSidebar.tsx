@@ -15,6 +15,7 @@ import {
   Sparkles,
   MessageCircle,
   Upload,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +23,7 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Brand Kit", url: "/brand-kit", icon: Palette },
   { title: "Template Library", url: "/templates", icon: LayoutTemplate },
+  { title: "Scripts", url: "/scripts", icon: FileText },
   { title: "Content Factory", url: "/content-factory", icon: Factory },
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
   { title: "Asset Vault", url: "/assets", icon: FolderOpen },

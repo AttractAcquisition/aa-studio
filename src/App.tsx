@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import BrandKit from "./pages/BrandKit";
 import TemplateLibrary from "./pages/TemplateLibrary";
 import TemplateEdit from "./pages/TemplateEdit";
+import ScriptLibrary from "./pages/ScriptLibrary";
 import ContentFactory from "./pages/ContentFactory";
 import ContentCalendar from "./pages/ContentCalendar";
 import AssetVault from "./pages/AssetVault";
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/brand-kit" element={<AuthGuard><BrandKit /></AuthGuard>} />
           <Route path="/templates" element={<AuthGuard><TemplateLibrary /></AuthGuard>} />
           <Route path="/templates/:id/edit" element={<AuthGuard><TemplateEdit /></AuthGuard>} />
+          <Route path="/scripts" element={<AuthGuard><ScriptLibrary /></AuthGuard>} />
           <Route path="/content-factory" element={<AuthGuard><ContentFactory /></AuthGuard>} />
           <Route path="/calendar" element={<AuthGuard><ContentCalendar /></AuthGuard>} />
           <Route path="/assets" element={<AuthGuard><AssetVault /></AuthGuard>} />
