@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.generate-design-image]
 verify_jwt = false
+
+[functions.generate-onepager-layout]
+verify_jwt = false
