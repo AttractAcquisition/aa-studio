@@ -11,6 +11,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sparkles,
   ArrowRight,
   ArrowLeft,
@@ -29,18 +35,22 @@ import {
   Save,
   FileDown,
   PenLine,
+  Import,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExports } from "@/hooks/useExports";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useContentFactoryFlow } from "@/hooks/useContentFactoryFlow";
+import { useScriptLibrary } from "@/hooks/useScriptLibrary";
 import { AaOnePagerDocument } from "@/components/onepager/AaOnePagerDocument";
 import { OnePagerRenderer } from "@/components/onepager/OnePagerRenderer";
 import { CONTENT_TYPES, SERIES_LIST, WORKFLOW_STEPS } from "@/types/content-factory";
 import { TEMPLATE_OPTIONS } from "@/lib/one-pager-templates";
 import type { OnePagerTemplateId } from "@/types/one-pager-layout";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 
 const stepIcons = {
   1: FileText,
@@ -53,6 +63,8 @@ export default function ContentFactory() {
   const { user, session } = useAuth();
   const { toast } = useToast();
   const { createExport } = useExports();
+  const { scripts } = useScriptLibrary();
+  const [searchParams] = useSearchParams();
 
   const flow = useContentFactoryFlow({
     user,
@@ -60,6 +72,46 @@ export default function ContentFactory() {
     toast,
     createExport,
   });
+
+  // Import script modal
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [scriptSearch, setScriptSearch] = useState("");
+
+  // Check if we came from Scripts page with a script to import
+  const importScriptId = searchParams.get("importScript");
+
+  // Handle importing a script
+  const handleImportScript = (scriptId: string) => {
+    const scriptToImport = scripts.find(s => s.id === scriptId);
+    if (scriptToImport) {
+      const fullScript = scriptToImport.hook 
+        ? `${scriptToImport.hook}\n\n${scriptToImport.body}` 
+        : scriptToImport.body;
+      flow.setScript(fullScript);
+      if (scriptToImport.hook) {
+        flow.setHook(scriptToImport.hook);
+      }
+      flow.setCurrentStep(2);
+      setImportModalOpen(false);
+      toast({
+        title: "Script imported",
+        description: `"${scriptToImport.title}" loaded into editor.`,
+      });
+    }
+  };
+
+  // Auto-import if came from Scripts page
+  useState(() => {
+    if (importScriptId && scripts.length > 0) {
+      handleImportScript(importScriptId);
+    }
+  });
+
+  // Filter scripts for import modal
+  const filteredImportScripts = scripts.filter(s =>
+    s.title.toLowerCase().includes(scriptSearch.toLowerCase()) ||
+    s.body.toLowerCase().includes(scriptSearch.toLowerCase())
+  );
 
   const {
     currentStep,
@@ -255,13 +307,22 @@ export default function ContentFactory() {
               </div>
 
               <div className="flex justify-between pt-4">
-                <Button
-                  variant="outline"
-                  onClick={skipToManualScript}
-                >
-                  <PenLine className="w-4 h-4 mr-2" />
-                  Add Manual Script
-                </Button>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={skipToManualScript}
+                  >
+                    <PenLine className="w-4 h-4 mr-2" />
+                    Manual Script
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setImportModalOpen(true)}
+                  >
+                    <Import className="w-4 h-4 mr-2" />
+                    Import from Scripts
+                  </Button>
+                </div>
                 <Button
                   variant="gradient"
                   size="lg"
@@ -871,6 +932,59 @@ export default function ContentFactory() {
           )}
         </div>
       </div>
+
+      {/* Import Script Modal */}
+      <Dialog open={importModalOpen} onOpenChange={setImportModalOpen}>
+        <DialogContent className="max-w-lg max-h-[70vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Import Script from Library</DialogTitle>
+          </DialogHeader>
+          
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={scriptSearch}
+              onChange={(e) => setScriptSearch(e.target.value)}
+              placeholder="Search scripts..."
+              className="pl-10"
+            />
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {filteredImportScripts.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>No scripts found</p>
+              </div>
+            ) : (
+              filteredImportScripts.map((s) => (
+                <div
+                  key={s.id}
+                  className="p-4 rounded-xl border border-border hover:border-primary/50 cursor-pointer transition-colors"
+                  onClick={() => handleImportScript(s.id)}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-foreground truncate">{s.title}</h4>
+                      {s.hook && (
+                        <p className="text-sm text-muted-foreground italic truncate mt-1">
+                          "{s.hook}"
+                        </p>
+                      )}
+                      <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                        {s.body}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                      {s.word_count} words
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
