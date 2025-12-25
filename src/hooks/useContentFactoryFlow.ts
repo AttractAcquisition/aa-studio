@@ -420,11 +420,11 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
 
         const data = await response.json();
         
-        if (!data.image_b64) {
+        if (!data.image_data_url) {
           throw new Error('No image returned from API');
         }
 
-        setDesignImages((prev) => ({ ...prev, [kind]: data.image_b64 }));
+        setDesignImages((prev) => ({ ...prev, [kind]: data.image_data_url }));
         
         // Save design to database if we have a content item
         if (contentItemId) {

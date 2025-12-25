@@ -51,7 +51,7 @@ serve(async (req) => {
         n: 1,
         size,
         quality: 'high',
-        response_format: 'b64_json',
+        output_format: 'png',
       }),
     });
 
@@ -79,7 +79,7 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ 
-        image_b64: `data:image/png;base64,${imageB64}`,
+        image_data_url: `data:image/png;base64,${imageB64}`,
         kind,
         size,
       }),
