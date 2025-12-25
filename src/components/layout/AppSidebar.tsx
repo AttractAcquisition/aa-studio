@@ -24,11 +24,13 @@ const navItems = [
   { title: "Brand Kit", url: "/brand-kit", icon: Palette },
   { title: "Template Library", url: "/templates", icon: LayoutTemplate },
   { title: "Scripts", url: "/scripts", icon: FileText },
+  { title: "One-Pagers", url: "/one-pagers", icon: FileText },
   { title: "Content Factory", url: "/content-factory", icon: Factory },
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
   { title: "Asset Vault", url: "/assets", icon: FolderOpen },
   { title: "Proof Vault", url: "/proofs", icon: Trophy },
   { title: "Upload", url: "/videos", icon: Upload },
+  { title: "Record", url: "/record", icon: Upload },
   { title: "Enquiries", url: "/enquiries", icon: MessageCircle },
   { title: "Exports", url: "/exports", icon: Download },
 ];

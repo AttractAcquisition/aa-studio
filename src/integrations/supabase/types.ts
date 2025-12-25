@@ -91,6 +91,45 @@ export type Database = {
           },
         ]
       }
+      brand_presets: {
+        Row: {
+          created_at: string
+          font_primary: string | null
+          font_secondary: string | null
+          id: string
+          logo_secondary_url: string | null
+          logo_url: string | null
+          preset_json: Json | null
+          prompt_rules: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          font_primary?: string | null
+          font_secondary?: string | null
+          id?: string
+          logo_secondary_url?: string | null
+          logo_url?: string | null
+          preset_json?: Json | null
+          prompt_rules?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          font_primary?: string | null
+          font_secondary?: string | null
+          id?: string
+          logo_secondary_url?: string | null
+          logo_url?: string | null
+          preset_json?: Json | null
+          prompt_rules?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       brand_settings: {
         Row: {
           brand_assets: Json
@@ -417,6 +456,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      one_pagers_v2: {
+        Row: {
+          created_at: string
+          export_png_url: string | null
+          id: string
+          layout_json: Json
+          source_script_id: string | null
+          tags: string[] | null
+          template_id: string | null
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          export_png_url?: string | null
+          id?: string
+          layout_json: Json
+          source_script_id?: string | null
+          tags?: string[] | null
+          template_id?: string | null
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          export_png_url?: string | null
+          id?: string
+          layout_json?: Json
+          source_script_id?: string | null
+          tags?: string[] | null
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       proof_cards: {
         Row: {

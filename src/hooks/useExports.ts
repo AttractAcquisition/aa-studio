@@ -19,10 +19,11 @@ export function useExports() {
         .select(`
           *,
           asset:assets!exports_asset_id_fkey(*),
-          content_item:content_items(*)
+          content_item:content_runs!exports_content_run_id_fkey(*)
         `)
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       
