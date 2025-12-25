@@ -16,6 +16,8 @@ import ProofVault from "./pages/ProofVault";
 import Exports from "./pages/Exports";
 import Enquiries from "./pages/Enquiries";
 import Videos from "./pages/Videos";
+import OnePagers from "./pages/OnePagers";
+import RecordingStudio from "./pages/RecordingStudio";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +43,8 @@ const App = () => (
           <Route path="/videos" element={<AuthGuard><Videos /></AuthGuard>} />
           <Route path="/exports" element={<AuthGuard><Exports /></AuthGuard>} />
           <Route path="/enquiries" element={<AuthGuard><Enquiries /></AuthGuard>} />
+          <Route path="/one-pagers" element={<AuthGuard><OnePagers /></AuthGuard>} />
+          <Route path="/record" element={<AuthGuard><RecordingStudio /></AuthGuard>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
