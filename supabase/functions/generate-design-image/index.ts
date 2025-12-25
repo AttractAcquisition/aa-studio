@@ -29,13 +29,13 @@ serve(async (req) => {
       );
     }
 
-    // Determine size based on kind
-    let size = '1024x1024'; // default square
-    if (kind === 'reel_cover') {
-      size = '1024x1792'; // 9:16 portrait
-    } else if (kind === 'one_pager_cover') {
-      size = '1024x1024'; // Using square for 4:5, will be cropped on frontend if needed
-    }
+    // Supported sizes for gpt-image-1: 1024x1024, 1024x1536, 1536x1024, auto
+    const sizeMap: Record<string, string> = {
+      bold_text_card: '1024x1024',    // square
+      reel_cover: '1024x1536',         // portrait (closest to 9:16)
+      one_pager_cover: '1024x1024',    // square
+    };
+    const size = sizeMap[kind] || '1024x1024';
 
     console.log(`Generating image with OpenAI. Kind: ${kind}, Size: ${size}, Prompt length: ${prompt.length}`);
 
