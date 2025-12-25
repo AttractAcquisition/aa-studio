@@ -8,6 +8,7 @@ interface ScriptAudioPlayerProps {
   audioUrl: string | null;
   audioDuration: number | null;
   isUploading?: boolean;
+  isGeneratingTTS?: boolean;
   onRecord: (blob: Blob, duration: number) => Promise<void>;
   onDelete: () => Promise<void>;
   onGenerateTTS: () => void;
@@ -17,6 +18,7 @@ export function ScriptAudioPlayer({
   audioUrl,
   audioDuration,
   isUploading,
+  isGeneratingTTS,
   onRecord,
   onDelete,
   onGenerateTTS,
@@ -205,9 +207,10 @@ export function ScriptAudioPlayer({
             size="sm"
             className="text-xs border-primary/30 text-primary hover:bg-primary/10"
             onClick={onGenerateTTS}
+            disabled={isGeneratingTTS}
           >
             <Volume2 className="h-3.5 w-3.5 mr-1" />
-            Generate TTS
+            {isGeneratingTTS ? "Generating..." : "Generate TTS"}
           </Button>
         </div>
       </div>
@@ -302,9 +305,10 @@ export function ScriptAudioPlayer({
           size="sm"
           className="text-xs border-primary/30 text-primary hover:bg-primary/10"
           onClick={onGenerateTTS}
+          disabled={isGeneratingTTS}
         >
           <Volume2 className="h-3.5 w-3.5 mr-1" />
-          Generate TTS
+          {isGeneratingTTS ? "Generating..." : "Generate TTS"}
         </Button>
       </div>
     </div>
