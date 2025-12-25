@@ -688,11 +688,43 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     const reelUrl = designImages.reel_cover;
     const coverUrl = designImages.one_pager_cover;
 
-    if (!boldUrl || !reelUrl || !coverUrl) {
+    // Build list of available images only
+    const availableImages: Array<{
+      key: DesignAssetKind;
+      format: "1:1" | "9:16" | "4:5";
+      url: string;
+      filenameBase: string;
+    }> = [];
+
+    if (boldUrl) {
+      availableImages.push({
+        key: "bold_text_card",
+        format: "1:1",
+        url: boldUrl,
+        filenameBase: "aa_bold_text_card",
+      });
+    }
+    if (reelUrl) {
+      availableImages.push({
+        key: "reel_cover",
+        format: "9:16",
+        url: reelUrl,
+        filenameBase: "aa_reel_cover",
+      });
+    }
+    if (coverUrl) {
+      availableImages.push({
+        key: "one_pager_cover",
+        format: "4:5",
+        url: coverUrl,
+        filenameBase: "aa_one_pager_cover",
+      });
+    }
+
+    if (availableImages.length === 0) {
       toast({
-        title: "Export failed",
-        description:
-          "Generate all 3 images first (Bold Text Card, Reel Cover, One-Pager Cover).",
+        title: "Nothing to export",
+        description: "Generate at least one design image first.",
         variant: "destructive",
       });
       return;
@@ -703,73 +735,66 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     try {
       const { urlToBlob } = await import("@/lib/export-utils");
       const baseTitle = (hook || contentType || "design").toString();
-      const runId = contentItemId || "temp";
-
-      const items: Array<{
-        key: DesignAssetKind;
-        format: "1:1" | "9:16" | "4:5";
-        url: string;
-        filenameBase: string;
-      }> = [
-        {
-          key: "bold_text_card",
-          format: "1:1",
-          url: boldUrl,
-          filenameBase: "aa_bold_text_card",
-        },
-        {
-          key: "reel_cover",
-          format: "9:16",
-          url: reelUrl,
-          filenameBase: "aa_reel_cover",
-        },
-        {
-          key: "one_pager_cover",
-          format: "4:5",
-          url: coverUrl,
-          filenameBase: "aa_one_pager_cover",
-        },
-      ];
 
       let successCount = 0;
 
-      for (const item of items) {
-        const blob = await urlToBlob(item.url);
-        const filename = `${item.filenameBase}_${Date.now()}_${item.format}.png`;
+      for (const item of availableImages) {
+        try {
+          console.log(`Processing ${item.key}...`);
+          const blob = await urlToBlob(item.url);
+          const filename = `${item.filenameBase}_${Date.now()}_${item.format.replace(":", "x")}.png`;
 
-        const uploaded = await uploadBlobToBucket(
-          "aa-designs",
-          blob,
-          user.id,
-          filename
-        );
-        if (!uploaded) throw new Error(`Upload failed (${item.key})`);
+          const uploaded = await uploadBlobToBucket(
+            "aa-designs",
+            blob,
+            user.id,
+            filename
+          );
+          
+          if (!uploaded) {
+            console.error(`Upload failed for ${item.key}`);
+            continue;
+          }
 
-        const asset = await createAssetRow(
-          user.id,
-          "aa-designs",
-          uploaded.path,
-          "design",
-          [item.key, item.format],
-          filename
-        );
-        if (!asset) throw new Error(`Asset creation failed (${item.key})`);
+          const asset = await createAssetRow(
+            user.id,
+            "aa-designs",
+            uploaded.path,
+            "design",
+            [item.key, item.format],
+            filename
+          );
+          
+          if (!asset) {
+            console.error(`Asset creation failed for ${item.key}`);
+            continue;
+          }
 
-        await createExport({
-          contentItemId: runId,
-          kind: item.key,
-          format: item.format,
-          blob,
-          series,
-          title: baseTitle,
-        });
+          // Only create export record if we have a valid content item ID
+          if (contentItemId) {
+            await createExport({
+              contentItemId,
+              kind: item.key,
+              format: item.format,
+              blob,
+              series,
+              title: baseTitle,
+            });
+          }
 
-        successCount += 1;
+          successCount += 1;
+        } catch (itemError) {
+          console.error(`Error processing ${item.key}:`, itemError);
+        }
+      }
+
+      if (successCount === 0) {
+        throw new Error("Failed to save any designs");
       }
 
       toast({
         title: "Export saved!",
-        description: `Saved ${successCount}/3 designs to your vault.`,
+        description: `Saved ${successCount}/${availableImages.length} designs to your vault.`,
       });
 
       // Reset

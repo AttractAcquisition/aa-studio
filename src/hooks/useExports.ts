@@ -89,7 +89,7 @@ export function useExports() {
         .from("exports")
         .insert({
           user_id: user.id,
-          content_item_id: contentItemId,
+          content_item_id: contentItemId || null,
           kind,
           format,
           asset_id: asset.id,
