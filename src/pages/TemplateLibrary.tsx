@@ -21,6 +21,16 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -54,11 +64,13 @@ const formatOptions = ["9:16", "4:5", "1:1", "16:9"];
 export default function TemplateLibrary() {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { templates, isLoading, createTemplate, isCreating } = useTemplates();
+  const { templates, isLoading, createTemplate, deleteTemplate, isCreating } = useTemplates();
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedFormats, setSelectedFormats] = useState<string[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<any>(null);
+  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
+  const [deleteTemplateName, setDeleteTemplateName] = useState<string>("");
   const [newTemplate, setNewTemplate] = useState({
     key: "",
     name: "",
@@ -176,6 +188,31 @@ export default function TemplateLibrary() {
     });
   };
 
+  const handleDeleteTemplate = (template: any) => {
+    setDeleteTemplateId(template.id);
+    setDeleteTemplateName(template.name);
+  };
+
+  const confirmDeleteTemplate = () => {
+    if (!deleteTemplateId) return;
+    try {
+      deleteTemplate(deleteTemplateId);
+      toast({
+        title: "Template deleted",
+        description: `${deleteTemplateName} has been removed.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error deleting template",
+        description: error.message || "Failed to delete template",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteTemplateId(null);
+      setDeleteTemplateName("");
+    }
+  };
+
   return (
     <AppLayout>
       <div className="animate-fade-in">
@@ -251,7 +288,7 @@ export default function TemplateLibrary() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTemplates.map((template: any, index: number) => (
+              {filteredTemplates.map((template: any, index: number) => (
               <div key={template.id} className="animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
                 <TemplateCard
                   type={template.category?.toUpperCase() || template.key.toUpperCase()}
@@ -272,6 +309,7 @@ export default function TemplateLibrary() {
                     }
                   }}
                   onDuplicate={() => handleDuplicateTemplate(template)}
+                  onDelete={!template.is_system ? () => handleDeleteTemplate(template) : undefined}
                   isSystem={template.is_system}
                 />
               </div>
@@ -414,6 +452,27 @@ export default function TemplateLibrary() {
         template={previewTemplate}
         previewComponent={previewTemplate ? getTemplatePreview(previewTemplate) : undefined}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteTemplateId} onOpenChange={(open) => !open && setDeleteTemplateId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{deleteTemplateName}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteTemplate}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

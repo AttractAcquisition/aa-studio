@@ -13,7 +13,10 @@ import {
   Image,
   LayoutTemplate,
   Loader2,
-  CalendarPlus
+  CalendarPlus,
+  Download,
+  RefreshCw,
+  Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useProofs } from "@/hooks/useProofs";
@@ -22,15 +25,33 @@ import { useScheduledPosts } from "@/hooks/useScheduledPosts";
 import { AddProofModal } from "@/components/modals/AddProofModal";
 import { ProofScreenshotModal } from "@/components/modals/ProofScreenshotModal";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ProofVault() {
   const [searchQuery, setSearchQuery] = useState("");
   const [addProofOpen, setAddProofOpen] = useState(false);
   const [viewProof, setViewProof] = useState<any>(null);
   const [generatingProofCardId, setGeneratingProofCardId] = useState<string | null>(null);
+  const [regeneratingCardId, setRegeneratingCardId] = useState<string | null>(null);
+  const [deleteCardId, setDeleteCardId] = useState<string | null>(null);
 
   const { proofs, stats, isLoading, updateProof } = useProofs();
-  const { proofCards, createProofCard, isCreating: isCreatingProofCard } = useProofCards();
+  const { 
+    proofCards, 
+    createProofCard, 
+    regenerateProofCardImage, 
+    deleteProofCard,
+    isCreating: isCreatingProofCard 
+  } = useProofCards();
   const { createScheduledPost } = useScheduledPosts();
 
   const filteredProofs = proofs.filter((proof: any) =>
@@ -53,12 +74,61 @@ export default function ProofVault() {
         metric: proof.metric,
         timeframe: proof.happened_at ? new Date(proof.happened_at).toLocaleDateString() : undefined,
         proof_type: "result",
+        industry: proof.industry,
       });
       toast.success("Proof card created!");
     } catch (error) {
+      console.error("Failed to generate proof card:", error);
       toast.error("Failed to generate proof card");
     } finally {
       setGeneratingProofCardId(null);
+    }
+  };
+
+  const handleRegenerateCard = async (cardId: string) => {
+    setRegeneratingCardId(cardId);
+    try {
+      await regenerateProofCardImage(cardId);
+      toast.success("Proof card image regenerated!");
+    } catch (error) {
+      console.error("Failed to regenerate:", error);
+      toast.error("Failed to regenerate image");
+    } finally {
+      setRegeneratingCardId(null);
+    }
+  };
+
+  const handleDeleteCard = async () => {
+    if (!deleteCardId) return;
+    try {
+      deleteProofCard(deleteCardId);
+      toast.success("Proof card deleted");
+    } catch (error) {
+      toast.error("Failed to delete proof card");
+    } finally {
+      setDeleteCardId(null);
+    }
+  };
+
+  const handleExportPng = async (card: any) => {
+    if (!card.assetUrl) {
+      toast.error("No image to export");
+      return;
+    }
+    try {
+      const response = await fetch(card.assetUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `proof-card-${card.id}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("Image downloaded!");
+    } catch (error) {
+      toast.error("Failed to download image");
     }
   };
 
@@ -243,18 +313,48 @@ export default function ProofVault() {
                 <h2 className="text-xl font-bold text-foreground mb-6">Generated Proof Cards</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {proofCards.map((card: any) => (
-                    <div key={card.id} className="aa-card">
-                      {card.assetUrl ? (
-                        <img 
-                          src={card.assetUrl} 
-                          alt={card.claim}
-                          className="w-full aspect-[4/5] object-cover rounded-xl mb-4"
-                        />
-                      ) : (
-                        <div className="w-full aspect-[4/5] bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl mb-4 flex items-center justify-center">
-                          <LayoutTemplate className="w-12 h-12 text-primary/50" />
+                    <div key={card.id} className="aa-card group">
+                      <div className="relative">
+                        {card.assetUrl ? (
+                          <img 
+                            src={card.assetUrl} 
+                            alt={card.claim}
+                            className="w-full aspect-square object-cover rounded-xl mb-4"
+                          />
+                        ) : (
+                          <div className="w-full aspect-square bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl mb-4 flex items-center justify-center">
+                            {isCreatingProofCard ? (
+                              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                            ) : (
+                              <LayoutTemplate className="w-12 h-12 text-primary/50" />
+                            )}
+                          </div>
+                        )}
+                        {/* Overlay actions */}
+                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleRegenerateCard(card.id)}
+                            disabled={regeneratingCardId === card.id}
+                          >
+                            {regeneratingCardId === card.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setDeleteCardId(card.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
                         </div>
-                      )}
+                      </div>
                       <h3 className="font-bold text-foreground">{card.claim}</h3>
                       {card.client_name && (
                         <p className="text-sm text-muted-foreground mt-1">{card.client_name}</p>
@@ -274,6 +374,15 @@ export default function ProofVault() {
                           <CalendarPlus className="w-4 h-4 mr-1" />
                           Use as Post
                         </Button>
+                        {card.assetUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExportPng(card)}
+                          >
+                            <Download className="w-4 h-4" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -303,6 +412,24 @@ export default function ProofVault() {
         onOpenChange={(open) => !open && setViewProof(null)} 
         proof={viewProof} 
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteCardId} onOpenChange={(open) => !open && setDeleteCardId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Proof Card?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this proof card and its generated image. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCard} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
