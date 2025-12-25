@@ -95,16 +95,19 @@ export async function renderOnePagerToBlob(
 
   // Clone the node deeply
   const clone = node.cloneNode(true) as HTMLElement;
-  
-  // Reset any transforms or problematic styles on the clone
+
+  // Remove constraints that commonly cause blank captures
   clone.style.transform = "none";
+  clone.style.filter = "none";
   clone.style.position = "static";
   clone.style.width = `${width}px`;
   clone.style.maxWidth = "none";
   clone.style.minWidth = `${width}px`;
+  clone.style.maxHeight = "none";
+  clone.style.height = "auto";
   clone.style.overflow = "visible";
-  
-  // Create a fixed-size container for export (offscreen but visible)
+
+  // Create a fixed-size container for export (offscreen but rendered)
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.left = "-10000px";
@@ -114,27 +117,39 @@ export async function renderOnePagerToBlob(
   container.style.zIndex = "-9999";
   container.style.visibility = "visible";
   container.style.opacity = "1";
+  container.style.pointerEvents = "none";
   container.appendChild(clone);
   document.body.appendChild(container);
 
-  // Small delay to ensure clone is rendered
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  // Allow layout to settle
+  await new Promise((resolve) => setTimeout(resolve, 150));
 
   try {
-    const dataUrl = await toPng(container, {
+    const rect = clone.getBoundingClientRect();
+    const height = Math.ceil(rect.height);
+
+    if (!Number.isFinite(height) || height < 80) {
+      throw new Error(`Export node height too small (${height}px)`);
+    }
+
+    const dataUrl = await toPng(clone, {
       cacheBust: true,
       pixelRatio: 2,
       backgroundColor: "#0B0F19",
       width,
+      height,
       skipFonts: false,
       style: {
         transform: "none",
+        filter: "none",
         opacity: "1",
         visibility: "visible",
+        width: `${width}px`,
+        height: `${height}px`,
       },
     });
 
-    if (!dataUrl || dataUrl === "data:,") {
+    if (!dataUrl || dataUrl === "data:," || dataUrl.length < 50) {
       throw new Error("Export produced empty image");
     }
 
