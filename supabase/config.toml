@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.generate-onepager-layout]
 verify_jwt = false
+
+[functions.lead-webhook]
+verify_jwt = false
+
+[functions.publish-post]
+verify_jwt = false

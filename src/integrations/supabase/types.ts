@@ -425,6 +425,48 @@ export type Database = {
           },
         ]
       }
+      leads: {
+        Row: {
+          api_key: string | null
+          created_at: string
+          email: string | null
+          id: string
+          message: string | null
+          name: string | null
+          notes: string | null
+          phone: string | null
+          source: string | null
+          status: string | null
+          user_id: string
+        }
+        Insert: {
+          api_key?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string | null
+          user_id: string
+        }
+        Update: {
+          api_key?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          message?: string | null
+          name?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       one_pagers: {
         Row: {
           blocks: Json | null
@@ -600,44 +642,59 @@ export type Database = {
       scheduled_posts: {
         Row: {
           asset_ids: string[] | null
+          caption: string | null
           content_item_id: string | null
           created_at: string | null
+          error: string | null
           id: string
+          media_url: string | null
           notes: string | null
           platform: string | null
+          platform_post_id: string | null
           post_type: string
           proof_card_id: string | null
           scheduled_for: string
           status: string | null
           title: string | null
+          updated_at: string | null
           user_id: string
         }
         Insert: {
           asset_ids?: string[] | null
+          caption?: string | null
           content_item_id?: string | null
           created_at?: string | null
+          error?: string | null
           id?: string
+          media_url?: string | null
           notes?: string | null
           platform?: string | null
+          platform_post_id?: string | null
           post_type: string
           proof_card_id?: string | null
           scheduled_for: string
           status?: string | null
           title?: string | null
+          updated_at?: string | null
           user_id: string
         }
         Update: {
           asset_ids?: string[] | null
+          caption?: string | null
           content_item_id?: string | null
           created_at?: string | null
+          error?: string | null
           id?: string
+          media_url?: string | null
           notes?: string | null
           platform?: string | null
+          platform_post_id?: string | null
           post_type?: string
           proof_card_id?: string | null
           scheduled_for?: string
           status?: string | null
           title?: string | null
+          updated_at?: string | null
           user_id?: string
         }
         Relationships: [
@@ -785,6 +842,33 @@ export type Database = {
           name?: string
           preview_asset_path?: string | null
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      user_settings: {
+        Row: {
+          calendly_embed_type: string | null
+          calendly_link: string | null
+          created_at: string
+          lead_webhook_key: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          calendly_embed_type?: string | null
+          calendly_link?: string | null
+          created_at?: string
+          lead_webhook_key?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          calendly_embed_type?: string | null
+          calendly_link?: string | null
+          created_at?: string
+          lead_webhook_key?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
