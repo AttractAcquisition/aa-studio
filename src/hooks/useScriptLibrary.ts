@@ -305,6 +305,89 @@ export function useScriptLibrary() {
     },
   });
 
+  const generateTTS = useMutation({
+    mutationFn: async ({ scriptId, text, voice }: { scriptId: string; text: string; voice?: string }) => {
+      if (!user?.id) throw new Error("Not authenticated");
+
+      // Call the edge function to generate TTS
+      const response = await fetch(
+        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-tts`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text, voice: voice || 'alloy' }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'TTS generation failed' }));
+        throw new Error(errorData.error || 'TTS generation failed');
+      }
+
+      // Get audio as blob
+      const audioBlob = await response.blob();
+      
+      // Get audio duration from the audio element
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      
+      const duration = await new Promise<number>((resolve) => {
+        audio.onloadedmetadata = () => {
+          resolve(Math.ceil(audio.duration));
+          URL.revokeObjectURL(audioUrl);
+        };
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          resolve(0);
+        };
+      });
+
+      // Upload to storage
+      const filename = `${Date.now()}.mp3`;
+      const path = `${user.id}/${scriptId}/${filename}`;
+
+      // Delete old audio if exists
+      const script = scripts.find((s) => s.id === scriptId);
+      if (script?.audio_path) {
+        await supabase.storage.from("script-audio").remove([script.audio_path]);
+      }
+
+      // Upload new audio
+      const { error: uploadError } = await supabase.storage
+        .from("script-audio")
+        .upload(path, audioBlob, {
+          contentType: 'audio/mpeg',
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Update script record
+      const { error: updateError } = await supabase
+        .from("script_library")
+        .update({
+          audio_path: path,
+          audio_duration_sec: duration,
+          audio_updated_at: new Date().toISOString(),
+        })
+        .eq("id", scriptId)
+        .eq("user_id", user.id);
+
+      if (updateError) throw updateError;
+
+      return path;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey });
+      toast.success("TTS audio generated and saved");
+    },
+    onError: (error) => {
+      toast.error(`Failed to generate TTS: ${error.message}`);
+    },
+  });
+
   // Computed stats
   const stats = {
     total: scripts.length,
@@ -324,5 +407,6 @@ export function useScriptLibrary() {
     markAsUsed,
     uploadAudio,
     deleteAudio,
+    generateTTS,
   };
 }

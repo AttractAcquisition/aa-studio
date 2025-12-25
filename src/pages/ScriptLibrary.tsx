@@ -60,6 +60,7 @@ export default function ScriptLibrary() {
     markAsUsed,
     uploadAudio,
     deleteAudio,
+    generateTTS,
   } = useScriptLibrary();
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -169,9 +170,13 @@ export default function ScriptLibrary() {
     await deleteAudio.mutateAsync(scriptId);
   };
 
-  const handleGenerateTTS = (scriptId: string) => {
-    console.log("Generate TTS requested for script:", scriptId);
-    toast.info("TTS generation coming soon");
+  const handleGenerateTTS = async (scriptId: string) => {
+    const script = scripts.find((s) => s.id === scriptId);
+    if (!script) return;
+    
+    // Use hook + body for TTS text
+    const text = script.hook ? `${script.hook}\n\n${script.body}` : script.body;
+    await generateTTS.mutateAsync({ scriptId, text });
   };
 
   return (
@@ -405,6 +410,7 @@ export default function ScriptLibrary() {
                     audioUrl={script.audio_url || null}
                     audioDuration={script.audio_duration_sec}
                     isUploading={uploadAudio.isPending}
+                    isGeneratingTTS={generateTTS.isPending}
                     onRecord={async (blob, duration) => handleRecordAudio(script.id, blob, duration)}
                     onDelete={async () => handleDeleteAudio(script.id)}
                     onGenerateTTS={() => handleGenerateTTS(script.id)}
