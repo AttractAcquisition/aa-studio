@@ -8,6 +8,8 @@ import type {
   DesignPrompts,
   OnePagerBlock,
 } from "@/types/content-factory";
+import type { OnePagerLayout, OnePagerTemplateId } from "@/types/one-pager-layout";
+import { validateOnePagerLayout } from "@/types/one-pager-layout";
 import {
   generateScript as apiGenerateScript,
   generateOnePager as apiGenerateOnePager,
@@ -68,6 +70,13 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
   const [onePagerBlocks, setOnePagerBlocks] = useState<OnePagerBlock[]>([]);
   const [designImages, setDesignImages] = useState<DesignImages>({});
   const [designPrompts, setDesignPrompts] = useState<DesignPrompts>({});
+  
+  // New one-pager layout system
+  const [onePagerLayout, setOnePagerLayout] = useState<OnePagerLayout | null>(null);
+  const [onePagerLayoutJson, setOnePagerLayoutJson] = useState<string>("");
+  const [onePagerLayoutError, setOnePagerLayoutError] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<OnePagerTemplateId>("auto");
+  const [isGeneratingLayout, setIsGeneratingLayout] = useState(false);
 
   // Loading state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -95,8 +104,93 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     setHook("");
     setScript("");
     setOnePagerBlocks([]);
+    setOnePagerLayout(null);
+    setOnePagerLayoutJson("");
+    setOnePagerLayoutError(null);
+    setSelectedTemplate("auto");
     setDesignImages({});
     setDesignPrompts({});
+  }, []);
+
+  // Generate One-Pager Layout (new JSON-based system)
+  const generateOnePagerLayout = useCallback(async () => {
+    if (!user || !script) {
+      toast({
+        title: "Missing data",
+        description: "Script is required to generate layout.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingLayout(true);
+    setOnePagerLayoutError(null);
+
+    try {
+      const response = await fetch(
+        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-onepager-layout`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            script,
+            hook,
+            series,
+            audience,
+            templateId: selectedTemplate,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to generate layout' }));
+        throw new Error(errorData.error || 'Failed to generate layout');
+      }
+
+      const data = await response.json();
+      
+      if (!data.layout) {
+        throw new Error(data.error || 'No layout returned');
+      }
+
+      const jsonStr = JSON.stringify(data.layout, null, 2);
+      setOnePagerLayoutJson(jsonStr);
+      
+      const validation = validateOnePagerLayout(data.layout);
+      if (validation.success && validation.data) {
+        setOnePagerLayout(validation.data);
+        setOnePagerLayoutError(null);
+      } else {
+        setOnePagerLayoutError(validation.error || 'Invalid layout');
+        setOnePagerLayout(null);
+      }
+
+      setCurrentStep(3);
+      toast({ title: "Layout generated!", description: "Edit JSON if needed, then preview." });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Failed to generate layout";
+      setOnePagerLayoutError(msg);
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    } finally {
+      setIsGeneratingLayout(false);
+    }
+  }, [user, script, hook, series, audience, selectedTemplate, toast]);
+
+  // Update layout from JSON editor
+  const updateLayoutFromJson = useCallback((jsonStr: string) => {
+    setOnePagerLayoutJson(jsonStr);
+    try {
+      const parsed = JSON.parse(jsonStr);
+      const validation = validateOnePagerLayout(parsed);
+      if (validation.success && validation.data) {
+        setOnePagerLayout(validation.data);
+        setOnePagerLayoutError(null);
+      } else {
+        setOnePagerLayoutError(validation.error || 'Invalid layout');
+      }
+    } catch {
+      setOnePagerLayoutError('Invalid JSON syntax');
+    }
   }, []);
 
   // Step 1: Generate Script
@@ -643,6 +737,13 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     isSaving,
     isGeneratingDesignKind,
     isGeneratingPromptKind,
+    
+    // New layout system
+    onePagerLayout,
+    onePagerLayoutJson,
+    onePagerLayoutError,
+    selectedTemplate,
+    isGeneratingLayout,
 
     // Computed
     wordCount,
@@ -661,10 +762,13 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     setAudience,
     setScript,
     setDesignPrompt,
+    setSelectedTemplate,
 
     // Actions
     generateScript: generateScriptAction,
     generateOnePager: generateOnePagerAction,
+    generateOnePagerLayout,
+    updateLayoutFromJson,
     generateDesign,
     generateDesignPrompt,
     generateDesignImage,
