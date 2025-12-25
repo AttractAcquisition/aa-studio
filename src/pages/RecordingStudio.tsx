@@ -4,23 +4,36 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Video,
   Camera,
   Square,
   Upload,
-  Play,
-  Pause,
   RotateCcw,
   Wand2,
   Scissors,
   Loader2,
   AlertTriangle,
+  Monitor,
+  Mic,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 type RecordingState = "idle" | "recording" | "paused" | "preview";
+type RecordingMode = "camera" | "screen";
+
+type DeviceInfo = {
+  deviceId: string;
+  label: string;
+};
 
 export default function RecordingStudio() {
   const { user } = useAuth();
@@ -31,6 +44,7 @@ export default function RecordingStudio() {
   const chunksRef = useRef<Blob[]>([]);
 
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>("camera");
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -39,12 +53,65 @@ export default function RecordingStudio() {
   const [duration, setDuration] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Device selection
+  const [videoDevices, setVideoDevices] = useState<DeviceInfo[]>([]);
+  const [audioDevices, setAudioDevices] = useState<DeviceInfo[]>([]);
+  const [selectedVideoDevice, setSelectedVideoDevice] = useState<string>("");
+  const [selectedAudioDevice, setSelectedAudioDevice] = useState<string>("");
+
+  // Enumerate available devices
+  const enumerateDevices = useCallback(async () => {
+    try {
+      // Request permissions first to get device labels
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      
+      const videoInputs = devices
+        .filter((d) => d.kind === "videoinput")
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Camera ${d.deviceId.slice(0, 8)}` }));
+      
+      const audioInputs = devices
+        .filter((d) => d.kind === "audioinput")
+        .map((d) => ({ deviceId: d.deviceId, label: d.label || `Microphone ${d.deviceId.slice(0, 8)}` }));
+      
+      setVideoDevices(videoInputs);
+      setAudioDevices(audioInputs);
+      
+      // Set defaults from localStorage or first device
+      const savedVideo = localStorage.getItem("aa-video-device");
+      const savedAudio = localStorage.getItem("aa-audio-device");
+      
+      if (savedVideo && videoInputs.find((d) => d.deviceId === savedVideo)) {
+        setSelectedVideoDevice(savedVideo);
+      } else if (videoInputs.length > 0) {
+        setSelectedVideoDevice(videoInputs[0].deviceId);
+      }
+      
+      if (savedAudio && audioInputs.find((d) => d.deviceId === savedAudio)) {
+        setSelectedAudioDevice(savedAudio);
+      } else if (audioInputs.length > 0) {
+        setSelectedAudioDevice(audioInputs[0].deviceId);
+      }
+    } catch (error) {
+      console.error("Error enumerating devices:", error);
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1920 } },
-        audio: true,
-      });
+      stopCamera();
+      
+      const constraints: MediaStreamConstraints = {
+        video: selectedVideoDevice
+          ? { deviceId: { exact: selectedVideoDevice }, width: { ideal: 1080 }, height: { ideal: 1920 } }
+          : { facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1920 } },
+        audio: selectedAudioDevice
+          ? { deviceId: { exact: selectedAudioDevice } }
+          : true,
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -55,7 +122,62 @@ export default function RecordingStudio() {
       setPermissionDenied(true);
       toast.error("Camera access denied. Please enable camera permissions.");
     }
-  }, []);
+  }, [selectedVideoDevice, selectedAudioDevice]);
+
+  const startScreenCapture = useCallback(async () => {
+    try {
+      stopCamera();
+      
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: true,
+      });
+      
+      // Also capture microphone audio if selected
+      let audioStream: MediaStream | null = null;
+      if (selectedAudioDevice) {
+        try {
+          audioStream = await navigator.mediaDevices.getUserMedia({
+            audio: { deviceId: { exact: selectedAudioDevice } },
+          });
+        } catch {
+          // Continue without mic if it fails
+        }
+      }
+      
+      // Combine streams
+      const tracks = [...displayStream.getVideoTracks()];
+      if (displayStream.getAudioTracks().length > 0) {
+        tracks.push(...displayStream.getAudioTracks());
+      }
+      if (audioStream) {
+        tracks.push(...audioStream.getAudioTracks());
+      }
+      
+      const combinedStream = new MediaStream(tracks);
+      streamRef.current = combinedStream;
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = combinedStream;
+      }
+      
+      // Handle user stopping screen share
+      displayStream.getVideoTracks()[0].onended = () => {
+        if (recordingState === "recording") {
+          stopRecording();
+        } else {
+          stopCamera();
+          setRecordingMode("camera");
+        }
+      };
+      
+      setPermissionDenied(false);
+    } catch (error) {
+      console.error("Screen capture denied:", error);
+      toast.error("Screen capture was cancelled or denied.");
+      setRecordingMode("camera");
+    }
+  }, [selectedAudioDevice]);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -118,8 +240,12 @@ export default function RecordingStudio() {
     setRecordedUrl(null);
     setRecordingState("idle");
     setDuration(0);
-    startCamera();
-  }, [recordedUrl, startCamera]);
+    if (recordingMode === "camera") {
+      startCamera();
+    } else {
+      startScreenCapture();
+    }
+  }, [recordedUrl, recordingMode, startCamera, startScreenCapture]);
 
   const handleUpload = async () => {
     if (!user || !recordedBlob) return;
@@ -160,6 +286,25 @@ export default function RecordingStudio() {
     }
   };
 
+  const handleVideoDeviceChange = (deviceId: string) => {
+    setSelectedVideoDevice(deviceId);
+    localStorage.setItem("aa-video-device", deviceId);
+  };
+
+  const handleAudioDeviceChange = (deviceId: string) => {
+    setSelectedAudioDevice(deviceId);
+    localStorage.setItem("aa-audio-device", deviceId);
+  };
+
+  const handleModeChange = (mode: RecordingMode) => {
+    setRecordingMode(mode);
+    if (mode === "camera") {
+      startCamera();
+    } else {
+      startScreenCapture();
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -167,14 +312,22 @@ export default function RecordingStudio() {
   };
 
   useEffect(() => {
-    startCamera();
+    enumerateDevices();
+  }, [enumerateDevices]);
+
+  useEffect(() => {
+    if (selectedVideoDevice || selectedAudioDevice) {
+      if (recordingMode === "camera") {
+        startCamera();
+      }
+    }
     return () => {
       stopCamera();
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
     };
-  }, [startCamera, stopCamera]);
+  }, [selectedVideoDevice, selectedAudioDevice]);
 
   useEffect(() => {
     if (previewRef.current && recordedUrl && recordingState === "preview") {
@@ -210,9 +363,77 @@ export default function RecordingStudio() {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Mode & Device Selectors */}
+            {recordingState === "idle" && (
+              <div className="aa-card">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Recording Mode */}
+                  <div>
+                    <Label className="text-muted-foreground mb-2 block">Recording Mode</Label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={recordingMode === "camera" ? "default" : "outline"}
+                        className="flex-1"
+                        onClick={() => handleModeChange("camera")}
+                      >
+                        <Camera className="w-4 h-4 mr-2" />
+                        Camera
+                      </Button>
+                      <Button
+                        variant={recordingMode === "screen" ? "default" : "outline"}
+                        className="flex-1"
+                        onClick={() => handleModeChange("screen")}
+                      >
+                        <Monitor className="w-4 h-4 mr-2" />
+                        Screen
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Camera Selector */}
+                  {recordingMode === "camera" && videoDevices.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground mb-2 block">Camera</Label>
+                      <Select value={selectedVideoDevice} onValueChange={handleVideoDeviceChange}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Select camera..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {videoDevices.map((device) => (
+                            <SelectItem key={device.deviceId} value={device.deviceId}>
+                              {device.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Microphone Selector */}
+                  {audioDevices.length > 0 && (
+                    <div>
+                      <Label className="text-muted-foreground mb-2 block">Microphone</Label>
+                      <Select value={selectedAudioDevice} onValueChange={handleAudioDeviceChange}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Select microphone..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {audioDevices.map((device) => (
+                            <SelectItem key={device.deviceId} value={device.deviceId}>
+                              {device.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Video Preview */}
             <div className="aa-card">
-              <div className="aspect-[9/16] max-h-[60vh] mx-auto rounded-2xl overflow-hidden bg-black relative">
+              <div className={`${recordingMode === "screen" ? "aspect-video" : "aspect-[9/16] max-h-[60vh]"} mx-auto rounded-2xl overflow-hidden bg-black relative`}>
                 {recordingState === "preview" && recordedUrl ? (
                   <video
                     ref={previewRef}
@@ -244,7 +465,11 @@ export default function RecordingStudio() {
               <div className="flex items-center justify-center gap-4 mt-6">
                 {recordingState === "idle" && (
                   <Button variant="gradient" size="lg" onClick={startRecording}>
-                    <Camera className="w-5 h-5 mr-2" />
+                    {recordingMode === "camera" ? (
+                      <Camera className="w-5 h-5 mr-2" />
+                    ) : (
+                      <Monitor className="w-5 h-5 mr-2" />
+                    )}
                     Start Recording
                   </Button>
                 )}
@@ -257,12 +482,10 @@ export default function RecordingStudio() {
                 )}
 
                 {recordingState === "preview" && (
-                  <>
-                    <Button variant="outline" size="lg" onClick={resetRecording}>
-                      <RotateCcw className="w-5 h-5 mr-2" />
-                      Record Again
-                    </Button>
-                  </>
+                  <Button variant="outline" size="lg" onClick={resetRecording}>
+                    <RotateCcw className="w-5 h-5 mr-2" />
+                    Record Again
+                  </Button>
                 )}
               </div>
             </div>

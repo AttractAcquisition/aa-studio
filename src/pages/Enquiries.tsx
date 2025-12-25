@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Plus,
   Search,
@@ -14,11 +16,18 @@ import {
   Phone,
   DollarSign,
   ChevronDown,
+  Copy,
+  Check,
+  ExternalLink,
+  Save,
+  Link,
 } from "lucide-react";
 import { useEvents, EventType, EventRow } from "@/hooks/useEvents";
 import { LogEventModal } from "@/components/modals/LogEventModal";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,12 +66,20 @@ const eventTypeColors: Record<EventType, string> = {
 type DateFilter = "7days" | "30days" | "all";
 
 export default function Enquiries() {
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState("events");
   const [searchQuery, setSearchQuery] = useState("");
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [modalDefaultType, setModalDefaultType] = useState<EventType>("enquiry");
   const [typeFilter, setTypeFilter] = useState<EventType | "all">("all");
   const [platformFilter, setPlatformFilter] = useState<string>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  
+  // Calendly state
+  const [calendlyLink, setCalendlyLink] = useState("");
+  const [webhookKey, setWebhookKey] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const { 
     events,
