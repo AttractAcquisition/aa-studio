@@ -107,6 +107,8 @@ export default function ContentFactory() {
     saveScriptToLibrary,
     exportScriptTxt,
     skipToManualScript,
+    saveOnePagerToLibrary,
+    isSavingOnePager,
   } = flow;
 
   // Toggle between JSON editor and preview
@@ -434,6 +436,20 @@ export default function ContentFactory() {
                   >
                     <Code className="w-4 h-4 mr-2" />
                     JSON
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveOnePagerToLibrary}
+                    disabled={!hasValidLayout || isSavingOnePager}
+                  >
+                    {isSavingOnePager ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    Save to Library
                   </Button>
 
                   <Button

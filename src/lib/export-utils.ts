@@ -1,6 +1,6 @@
 // Export utilities for Content Factory
 
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 
 /**
  * Convert a data URL to a Blob
@@ -51,24 +51,64 @@ export async function downloadFromUrlOrDataUrl(
 }
 
 /**
- * Render an HTML element to a PNG Blob using html2canvas
+ * Render an HTML element to a PNG Blob using html-to-image
+ * Fixed dimensions for consistent export quality
  */
 export async function renderNodeToBlob(
   node: HTMLElement,
   backgroundColor = "#0B0F19"
 ): Promise<Blob> {
-  const canvas = await html2canvas(node, {
+  const dataUrl = await toPng(node, {
+    cacheBust: true,
+    pixelRatio: 2,
     backgroundColor,
-    scale: 2,
+    style: {
+      transform: "none",
+      width: `${node.scrollWidth}px`,
+      height: `${node.scrollHeight}px`,
+    },
   });
 
-  return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("PNG export failed"))),
-      "image/png",
-      0.95
-    );
-  });
+  const res = await fetch(dataUrl);
+  return res.blob();
+}
+
+/**
+ * Render node to PNG with fixed width for one-pager export
+ */
+export async function renderOnePagerToBlob(
+  node: HTMLElement,
+  width = 1080
+): Promise<Blob> {
+  // Clone the node to avoid modifying the original
+  const clone = node.cloneNode(true) as HTMLElement;
+  
+  // Create a fixed-size container for export
+  const container = document.createElement("div");
+  container.style.position = "absolute";
+  container.style.left = "-9999px";
+  container.style.top = "0";
+  container.style.width = `${width}px`;
+  container.style.backgroundColor = "#0B0F19";
+  container.appendChild(clone);
+  document.body.appendChild(container);
+
+  try {
+    const dataUrl = await toPng(container, {
+      cacheBust: true,
+      pixelRatio: 2,
+      backgroundColor: "#0B0F19",
+      width,
+      style: {
+        transform: "none",
+      },
+    });
+
+    const res = await fetch(dataUrl);
+    return res.blob();
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 /**
