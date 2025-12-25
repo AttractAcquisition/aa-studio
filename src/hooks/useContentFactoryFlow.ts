@@ -721,6 +721,89 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     toast,
   ]);
 
+  // Save script to script_library table
+  const saveScriptToLibrary = useCallback(async () => {
+    if (!user || !script) {
+      toast({
+        title: "Cannot save",
+        description: "No script to save.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const title = hook || `${seriesLabel} Script`;
+      const wc = script.trim().split(/\s+/).filter(Boolean).length;
+
+      await supabase.from("script_library").insert({
+        user_id: user.id,
+        title,
+        body: script,
+        hook: hook || null,
+        platform: "instagram",
+        status: "draft",
+        word_count: wc,
+        tags: series ? [series] : [],
+      });
+
+      toast({
+        title: "Saved to Scripts",
+        description: "Script added to your library.",
+      });
+    } catch (e) {
+      toast({
+        title: "Save failed",
+        description: e instanceof Error ? e.message : "Could not save script.",
+        variant: "destructive",
+      });
+    }
+  }, [user, script, hook, seriesLabel, series, toast]);
+
+  // Export script as .txt file
+  const exportScriptTxt = useCallback(() => {
+    if (!script) {
+      toast({
+        title: "Nothing to export",
+        description: "No script available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const blob = new Blob([script], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${hook || seriesLabel || "script"}_${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Exported",
+        description: "Script downloaded as .txt file.",
+      });
+    } catch (e) {
+      toast({
+        title: "Export failed",
+        description: e instanceof Error ? e.message : "Could not export script.",
+        variant: "destructive",
+      });
+    }
+  }, [script, hook, seriesLabel, toast]);
+
+  // Skip to manual script entry (Step 2 with empty script)
+  const skipToManualScript = useCallback(() => {
+    setScript("");
+    setContentType("");
+    setSeries("");
+    setHook("");
+    setCurrentStep(2);
+  }, []);
+
   return {
     // State
     currentStep,
@@ -777,5 +860,8 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     exportSingleImage,
     saveAndExportAll,
     resetState,
+    saveScriptToLibrary,
+    exportScriptTxt,
+    skipToManualScript,
   };
 }

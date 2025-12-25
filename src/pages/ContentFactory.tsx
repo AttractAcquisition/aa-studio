@@ -26,6 +26,9 @@ import {
   Code,
   Eye,
   FileJson,
+  Save,
+  FileDown,
+  PenLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExports } from "@/hooks/useExports";
@@ -101,6 +104,9 @@ export default function ContentFactory() {
     viewOnePagerNewTab,
     exportSingleImage,
     saveAndExportAll,
+    saveScriptToLibrary,
+    exportScriptTxt,
+    skipToManualScript,
   } = flow;
 
   // Toggle between JSON editor and preview
@@ -246,7 +252,14 @@ export default function ContentFactory() {
                 />
               </div>
 
-              <div className="flex justify-end pt-4">
+              <div className="flex justify-between pt-4">
+                <Button
+                  variant="outline"
+                  onClick={skipToManualScript}
+                >
+                  <PenLine className="w-4 h-4 mr-2" />
+                  Add Manual Script
+                </Button>
                 <Button
                   variant="gradient"
                   size="lg"
@@ -338,6 +351,28 @@ export default function ContentFactory() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Action Buttons Row */}
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={saveScriptToLibrary}
+                  disabled={!script}
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  Save to Scripts
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={exportScriptTxt}
+                  disabled={!script}
+                >
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Export .txt
+                </Button>
               </div>
 
               <div className="flex justify-between pt-4">
@@ -552,18 +587,18 @@ export default function ContentFactory() {
                     </div>
                   </div>
 
-                  {/* Prompt Editor */}
-                  {boldPrompt && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">Prompt (editable)</label>
-                      <Textarea
-                        value={boldPrompt}
-                        onChange={(e) => setDesignPrompt("bold_text_card", e.target.value)}
-                        className="min-h-[80px] text-xs"
-                        placeholder="Generated prompt will appear here..."
-                      />
-                    </div>
-                  )}
+                  {/* Prompt Editor - Always visible */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Prompt {boldPrompt ? "(editable)" : "— generate or type manually"}
+                    </label>
+                    <Textarea
+                      value={boldPrompt}
+                      onChange={(e) => setDesignPrompt("bold_text_card", e.target.value)}
+                      className="min-h-[80px] text-xs"
+                      placeholder="Click 'Generate Prompt' or type your own design prompt here..."
+                    />
+                  </div>
 
                   {/* Buttons */}
                   <div className="flex gap-2">
@@ -642,18 +677,18 @@ export default function ContentFactory() {
                     </div>
                   </div>
 
-                  {/* Prompt Editor */}
-                  {reelPrompt && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">Prompt (editable)</label>
-                      <Textarea
-                        value={reelPrompt}
-                        onChange={(e) => setDesignPrompt("reel_cover", e.target.value)}
-                        className="min-h-[80px] text-xs"
-                        placeholder="Generated prompt will appear here..."
-                      />
-                    </div>
-                  )}
+                  {/* Prompt Editor - Always visible */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Prompt {reelPrompt ? "(editable)" : "— generate or type manually"}
+                    </label>
+                    <Textarea
+                      value={reelPrompt}
+                      onChange={(e) => setDesignPrompt("reel_cover", e.target.value)}
+                      className="min-h-[80px] text-xs"
+                      placeholder="Click 'Generate Prompt' or type your own design prompt here..."
+                    />
+                  </div>
 
                   {/* Buttons */}
                   <div className="flex gap-2">
@@ -732,18 +767,18 @@ export default function ContentFactory() {
                     </div>
                   </div>
 
-                  {/* Prompt Editor */}
-                  {coverPrompt && (
-                    <div className="space-y-2">
-                      <label className="text-xs text-muted-foreground">Prompt (editable)</label>
-                      <Textarea
-                        value={coverPrompt}
-                        onChange={(e) => setDesignPrompt("one_pager_cover", e.target.value)}
-                        className="min-h-[80px] text-xs"
-                        placeholder="Generated prompt will appear here..."
-                      />
-                    </div>
-                  )}
+                  {/* Prompt Editor - Always visible */}
+                  <div className="space-y-2">
+                    <label className="text-xs text-muted-foreground">
+                      Prompt {coverPrompt ? "(editable)" : "— generate or type manually"}
+                    </label>
+                    <Textarea
+                      value={coverPrompt}
+                      onChange={(e) => setDesignPrompt("one_pager_cover", e.target.value)}
+                      className="min-h-[80px] text-xs"
+                      placeholder="Click 'Generate Prompt' or type your own design prompt here..."
+                    />
+                  </div>
 
                   {/* Buttons */}
                   <div className="flex gap-2">
