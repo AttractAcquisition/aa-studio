@@ -412,30 +412,32 @@ function VideoCard({
 
   const handleConvertToMp4 = async () => {
     if (!isWebm) return;
-    
+
     setIsConverting(true);
     try {
-      toast.info("Converting video to MP4... This may take a moment.");
-      
+      toast.info("Convert to MP4 requires a transcoding service.");
+
       const { data, error } = await supabase.functions.invoke("convert-video", {
         body: {
           videoId: video.id,
-          userId: video.user_id,
           bucket: video.bucket,
           path: video.path,
+          mime: video.mime,
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data?.success) {
-        toast.success("Video converted to MP4 successfully!");
+        toast.success(data.message || "Conversion complete");
         onRefresh();
-        // Clear cached URL so it reloads
         setUrl(null);
-      } else {
-        throw new Error(data?.error || "Conversion failed");
+        return;
       }
+
+      toast.error(data?.message || data?.error || "Conversion not available");
     } catch (error: any) {
       console.error("Conversion error:", error);
       toast.error(error.message || "Failed to convert video");
