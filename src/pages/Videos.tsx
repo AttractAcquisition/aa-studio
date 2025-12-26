@@ -481,13 +481,13 @@ function VideoCard({
           <span className="text-xs text-muted-foreground">
             {formatBytes(video.bytes)}
           </span>
-          {/* Codec badge */}
+          {/* Container format badge - show actual format, not codec assumption */}
           <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
             video.mime?.includes("mp4") 
               ? "bg-green-500/10 text-green-500" 
               : "bg-yellow-500/10 text-yellow-500"
           }`}>
-            {video.mime?.includes("mp4") ? "MP4 (H.264)" : video.mime?.includes("webm") ? "WebM (VP9)" : video.mime || "Unknown"}
+            {video.mime?.includes("mp4") ? "MP4" : video.mime?.includes("webm") ? "WebM" : video.path.split(".").pop()?.toUpperCase() || "Unknown"}
           </span>
           {/* Audio badge */}
           <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
@@ -500,6 +500,20 @@ function VideoCard({
             ) : (
               <><MicOff className="w-3 h-3" /> No Audio</>
             )}
+          </span>
+          {/* Captions status badge */}
+          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
+            video.has_audio !== false && video.audio_path
+              ? "bg-green-500/10 text-green-500" 
+              : video.has_audio !== false
+              ? "bg-yellow-500/10 text-yellow-500"
+              : "bg-muted text-muted-foreground"
+          }`}>
+            {video.has_audio !== false && video.audio_path
+              ? "Captions Ready"
+              : video.has_audio !== false
+              ? "Captions Possible"
+              : "No Captions"}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -562,24 +576,25 @@ function VideoCard({
           </Button>
         </div>
         
-        {/* Convert to MP4 button - only show for WebM videos */}
+        {/* Convert to MP4 button - only show for WebM videos, with honest label */}
         {isWebm && (
           <Button
             variant="secondary"
             size="sm"
-            className="w-full"
+            className="w-full text-xs"
             onClick={handleConvertToMp4}
             disabled={isConverting}
+            title="Requires external transcoding service (Mux/Cloudflare/etc.)"
           >
             {isConverting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Converting...
+                Checking...
               </>
             ) : (
               <>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                Convert to MP4
+                Convert to MP4 (External)
               </>
             )}
           </Button>
