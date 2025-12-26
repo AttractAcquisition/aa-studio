@@ -26,6 +26,8 @@ import {
   Play,
   FileVideo,
   Download,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { useVideos, VideoRow } from "@/hooks/useVideos";
 import { toast } from "sonner";
@@ -429,15 +431,40 @@ function VideoCard({
       {/* Info */}
       <div className="space-y-2">
         <h3 className="font-bold text-foreground truncate">{video.title}</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="aa-pill-outline text-[10px]">{video.platform}</span>
           <span className="text-xs text-muted-foreground">
             {formatBytes(video.bytes)}
+          </span>
+          {/* Codec badge */}
+          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
+            video.mime?.includes("mp4") 
+              ? "bg-green-500/10 text-green-500" 
+              : "bg-yellow-500/10 text-yellow-500"
+          }`}>
+            {video.mime?.includes("mp4") ? "MP4 (H.264)" : video.mime?.includes("webm") ? "WebM (VP9)" : video.mime || "Unknown"}
+          </span>
+          {/* Audio badge */}
+          <span className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
+            video.has_audio !== false 
+              ? "bg-primary/10 text-primary" 
+              : "bg-destructive/10 text-destructive"
+          }`}>
+            {video.has_audio !== false ? (
+              <><Mic className="w-3 h-3" /> Audio</>
+            ) : (
+              <><MicOff className="w-3 h-3" /> No Audio</>
+            )}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
           {format(new Date(video.created_at), "MMM d, yyyy")}
         </p>
+        {video.has_audio === false && (
+          <p className="text-[10px] text-yellow-500">
+            ⚠️ Re-record with mic for captions
+          </p>
+        )}
       </div>
 
       {/* Actions */}
@@ -463,7 +490,9 @@ function VideoCard({
               const blobUrl = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = blobUrl;
-              a.download = `${video.title}.mp4`;
+              // Use correct extension based on actual mime type
+              const extension = video.mime?.includes("webm") ? "webm" : video.mime?.includes("mp4") ? "mp4" : video.path.split(".").pop() || "mp4";
+              a.download = `${video.title}.${extension}`;
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);

@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.publish-post]
 verify_jwt = false
+
+[functions.convert-video]
+verify_jwt = false
