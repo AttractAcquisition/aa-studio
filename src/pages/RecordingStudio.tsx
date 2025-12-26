@@ -275,6 +275,13 @@ export default function RecordingStudio() {
       const url = URL.createObjectURL(blob);
       setRecordedUrl(url);
       setRecordingState("preview");
+
+      if (actualMime === "video/webm") {
+        toast.message("Saved as WebM", {
+          description:
+            "This browser can't record MP4 directly. Download will be .webm unless you convert with an external transcoder.",
+        });
+      }
     };
 
     mediaRecorderRef.current = mediaRecorder;
