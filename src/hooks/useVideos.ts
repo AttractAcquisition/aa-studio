@@ -29,7 +29,7 @@ export function useVideos() {
   const queryClient = useQueryClient();
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
-  const { data: videos, isLoading } = useQuery({
+  const { data: videos, isLoading, refetch } = useQuery({
     queryKey: ["videos", user?.id],
     queryFn: async () => {
       if (!user) return [];
@@ -145,5 +145,6 @@ export function useVideos() {
     getSignedUrl,
     copySignedUrl,
     signedUrls,
+    refetch,
   };
 }

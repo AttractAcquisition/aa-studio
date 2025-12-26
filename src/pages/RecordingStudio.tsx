@@ -249,11 +249,18 @@ export default function RecordingStudio() {
     if (!streamRef.current) return;
 
     chunksRef.current = [];
-    const mediaRecorder = new MediaRecorder(streamRef.current, {
-      mimeType: MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
-        ? "video/webm;codecs=vp9"
-        : "video/webm",
-    });
+    
+    // Prefer MP4 if supported (Safari), otherwise use WebM
+    let mimeType = "video/webm";
+    if (MediaRecorder.isTypeSupported("video/mp4")) {
+      mimeType = "video/mp4";
+    } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
+      mimeType = "video/webm;codecs=vp9";
+    }
+    
+    console.log("Recording with mimeType:", mimeType);
+    
+    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) {
@@ -262,7 +269,8 @@ export default function RecordingStudio() {
     };
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: "video/webm" });
+      const actualMime = mimeType.includes("mp4") ? "video/mp4" : "video/webm";
+      const blob = new Blob(chunksRef.current, { type: actualMime });
       setRecordedBlob(blob);
       const url = URL.createObjectURL(blob);
       setRecordedUrl(url);
@@ -308,13 +316,18 @@ export default function RecordingStudio() {
 
     setIsUploading(true);
     try {
-      const filename = `${Date.now()}.webm`;
+      // Detect actual mime type from blob
+      const isMP4 = recordedBlob.type.includes("mp4");
+      const extension = isMP4 ? "mp4" : "webm";
+      const mimeType = isMP4 ? "video/mp4" : "video/webm";
+      
+      const filename = `${Date.now()}.${extension}`;
       const path = `${user.id}/${filename}`;
 
       const { error: uploadError } = await supabase.storage
         .from("aa-videos")
         .upload(path, recordedBlob, {
-          contentType: "video/webm",
+          contentType: mimeType,
           upsert: false,
         });
 
@@ -325,7 +338,7 @@ export default function RecordingStudio() {
         title: title || `Recording ${new Date().toLocaleDateString()}`,
         path,
         bucket: "aa-videos",
-        mime: "video/webm",
+        mime: mimeType,
         bytes: recordedBlob.size,
         platform: "instagram",
         has_audio: hasAudio,

@@ -28,11 +28,13 @@ import {
   Download,
   Mic,
   MicOff,
+  RefreshCw,
 } from "lucide-react";
 import { useVideos, VideoRow } from "@/hooks/useVideos";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Progress } from "@/components/ui/progress";
+import { supabase } from "@/integrations/supabase/client";
 
 const platforms = ["instagram", "tiktok", "linkedin", "youtube", "twitter", "other"];
 
@@ -65,6 +67,7 @@ export default function Videos() {
     getSignedUrl,
     copySignedUrl,
     signedUrls,
+    refetch,
   } = useVideos();
 
   // Load preview URL when video is selected
@@ -233,6 +236,7 @@ export default function Videos() {
                 onDelete={() => handleDelete(video)}
                 index={index}
                 getSignedUrl={getSignedUrl}
+                onRefresh={refetch}
               />
             ))}
           </div>
@@ -384,6 +388,7 @@ function VideoCard({
   onDelete,
   index,
   getSignedUrl,
+  onRefresh,
 }: {
   video: VideoRow;
   signedUrl?: string;
@@ -392,14 +397,52 @@ function VideoCard({
   onDelete: () => void;
   index: number;
   getSignedUrl: (video: VideoRow) => Promise<string>;
+  onRefresh: () => void;
 }) {
   const [url, setUrl] = useState<string | null>(signedUrl || null);
+  const [isConverting, setIsConverting] = useState(false);
 
   useEffect(() => {
     if (!url && !signedUrl) {
       getSignedUrl(video).then(setUrl).catch(console.error);
     }
   }, [video, signedUrl, url, getSignedUrl]);
+
+  const isWebm = video.mime?.includes("webm") || video.path.endsWith(".webm");
+
+  const handleConvertToMp4 = async () => {
+    if (!isWebm) return;
+    
+    setIsConverting(true);
+    try {
+      toast.info("Converting video to MP4... This may take a moment.");
+      
+      const { data, error } = await supabase.functions.invoke("convert-video", {
+        body: {
+          videoId: video.id,
+          userId: video.user_id,
+          bucket: video.bucket,
+          path: video.path,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success("Video converted to MP4 successfully!");
+        onRefresh();
+        // Clear cached URL so it reloads
+        setUrl(null);
+      } else {
+        throw new Error(data?.error || "Conversion failed");
+      }
+    } catch (error: any) {
+      console.error("Conversion error:", error);
+      toast.error(error.message || "Failed to convert video");
+    } finally {
+      setIsConverting(false);
+    }
+  };
 
   return (
     <div
@@ -468,52 +511,77 @@ function VideoCard({
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 mt-4 pt-4 border-t border-border">
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          onClick={onCopyLink}
-        >
-          <Copy className="w-4 h-4 mr-2" />
-          Copy Link
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          onClick={async () => {
-            try {
-              const downloadUrl = url || await getSignedUrl(video);
-              const response = await fetch(downloadUrl);
-              const blob = await response.blob();
-              const blobUrl = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = blobUrl;
-              // Use correct extension based on actual mime type
-              const extension = video.mime?.includes("webm") ? "webm" : video.mime?.includes("mp4") ? "mp4" : video.path.split(".").pop() || "mp4";
-              a.download = `${video.title}.${extension}`;
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-              URL.revokeObjectURL(blobUrl);
-              toast.success("Download started!");
-            } catch (error) {
-              toast.error("Failed to download video");
-            }
-          }}
-        >
-          <Download className="w-4 h-4 mr-2" />
-          Download
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-destructive hover:text-destructive"
-          onClick={onDelete}
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
+      <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-border">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={onCopyLink}
+          >
+            <Copy className="w-4 h-4 mr-2" />
+            Copy Link
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={async () => {
+              try {
+                const downloadUrl = url || await getSignedUrl(video);
+                const response = await fetch(downloadUrl);
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                // Use correct extension based on actual mime type
+                const extension = video.mime?.includes("webm") ? "webm" : video.mime?.includes("mp4") ? "mp4" : video.path.split(".").pop() || "mp4";
+                a.download = `${video.title}.${extension}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(blobUrl);
+                toast.success("Download started!");
+              } catch (error) {
+                toast.error("Failed to download video");
+              }
+            }}
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive hover:text-destructive"
+            onClick={onDelete}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+        
+        {/* Convert to MP4 button - only show for WebM videos */}
+        {isWebm && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            onClick={handleConvertToMp4}
+            disabled={isConverting}
+          >
+            {isConverting ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Converting...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Convert to MP4
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
