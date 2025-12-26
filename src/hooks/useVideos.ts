@@ -14,6 +14,7 @@ export interface VideoRow {
   mime: string | null;
   bytes: number | null;
   created_at: string;
+  has_audio: boolean | null;
 }
 
 export interface UploadVideoParams {

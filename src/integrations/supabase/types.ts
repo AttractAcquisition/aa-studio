@@ -983,6 +983,7 @@ export type Database = {
           bytes: number | null
           created_at: string
           description: string | null
+          has_audio: boolean | null
           id: string
           mime: string | null
           path: string
@@ -995,6 +996,7 @@ export type Database = {
           bytes?: number | null
           created_at?: string
           description?: string | null
+          has_audio?: boolean | null
           id?: string
           mime?: string | null
           path: string
@@ -1007,6 +1009,7 @@ export type Database = {
           bytes?: number | null
           created_at?: string
           description?: string | null
+          has_audio?: boolean | null
           id?: string
           mime?: string | null
           path?: string

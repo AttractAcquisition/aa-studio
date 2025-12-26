@@ -66,6 +66,7 @@ export default function RecordingStudio() {
   const [title, setTitle] = useState("");
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [hasAudio, setHasAudio] = useState(true);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Device selection
@@ -126,12 +127,32 @@ export default function RecordingStudio() {
           ? { deviceId: { exact: selectedVideoDevice }, width: { ideal: 1080 }, height: { ideal: 1920 } }
           : { facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1920 } },
         audio: selectedAudioDevice
-          ? { deviceId: { exact: selectedAudioDevice } }
-          : true,
+          ? { 
+              deviceId: { exact: selectedAudioDevice },
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            }
+          : {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
       };
       
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
+      
+      // Check if audio is present
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) {
+        toast.warning("No microphone audio detected. Recording will have no sound.");
+        setHasAudio(false);
+      } else {
+        setHasAudio(true);
+        console.log("Audio track active:", audioTracks[0].label);
+      }
+      
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -157,7 +178,12 @@ export default function RecordingStudio() {
       if (selectedAudioDevice) {
         try {
           audioStream = await navigator.mediaDevices.getUserMedia({
-            audio: { deviceId: { exact: selectedAudioDevice } },
+            audio: { 
+              deviceId: { exact: selectedAudioDevice },
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
           });
         } catch {
           // Continue without mic if it fails
@@ -166,11 +192,22 @@ export default function RecordingStudio() {
       
       // Combine streams
       const tracks = [...displayStream.getVideoTracks()];
+      let audioTrackCount = 0;
       if (displayStream.getAudioTracks().length > 0) {
         tracks.push(...displayStream.getAudioTracks());
+        audioTrackCount += displayStream.getAudioTracks().length;
       }
       if (audioStream) {
         tracks.push(...audioStream.getAudioTracks());
+        audioTrackCount += audioStream.getAudioTracks().length;
+      }
+      
+      // Check if audio is present
+      if (audioTrackCount === 0) {
+        toast.warning("No audio detected. Recording will have no sound.");
+        setHasAudio(false);
+      } else {
+        setHasAudio(true);
       }
       
       const combinedStream = new MediaStream(tracks);
@@ -283,7 +320,7 @@ export default function RecordingStudio() {
 
       if (uploadError) throw uploadError;
 
-      const { error: dbError } = await supabase.from("videos").insert({
+      const { data: insertData, error: dbError } = await supabase.from("videos").insert({
         user_id: user.id,
         title: title || `Recording ${new Date().toLocaleDateString()}`,
         path,
@@ -291,9 +328,10 @@ export default function RecordingStudio() {
         mime: "video/webm",
         bytes: recordedBlob.size,
         platform: "instagram",
+        has_audio: hasAudio,
         // Store aspect ratio metadata in description as JSON
         description: JSON.stringify({ aspect_ratio: selectedAspectRatio, resolution: `${currentRatio.width}x${currentRatio.height}` }),
-      });
+      }).select().single();
 
       if (dbError) throw dbError;
 
