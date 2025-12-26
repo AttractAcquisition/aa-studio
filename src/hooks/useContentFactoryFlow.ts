@@ -944,6 +944,71 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     }
   }, [script, hook, seriesLabel, toast]);
 
+  // Export script as .srt file (subtitle format)
+  const exportScriptSrt = useCallback(() => {
+    if (!script) {
+      toast({
+        title: "Nothing to export",
+        description: "No script available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Split script into sentences/chunks for SRT format
+      const sentences = script
+        .split(/(?<=[.!?])\s+/)
+        .filter((s) => s.trim().length > 0);
+
+      // Estimate ~2.5 seconds per sentence (adjustable)
+      const secondsPerSentence = 2.5;
+      let srtContent = "";
+      let currentTime = 0;
+
+      sentences.forEach((sentence, index) => {
+        const startTime = currentTime;
+        const endTime = currentTime + secondsPerSentence;
+
+        // Format time as HH:MM:SS,mmm
+        const formatTime = (seconds: number) => {
+          const h = Math.floor(seconds / 3600);
+          const m = Math.floor((seconds % 3600) / 60);
+          const s = Math.floor(seconds % 60);
+          const ms = Math.floor((seconds % 1) * 1000);
+          return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")},${ms.toString().padStart(3, "0")}`;
+        };
+
+        srtContent += `${index + 1}\n`;
+        srtContent += `${formatTime(startTime)} --> ${formatTime(endTime)}\n`;
+        srtContent += `${sentence.trim()}\n\n`;
+
+        currentTime = endTime;
+      });
+
+      const blob = new Blob([srtContent], { type: "application/x-subrip" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${hook || seriesLabel || "script"}_${Date.now()}.srt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Exported",
+        description: "Script downloaded as .srt subtitle file.",
+      });
+    } catch (e) {
+      toast({
+        title: "Export failed",
+        description: e instanceof Error ? e.message : "Could not export SRT.",
+        variant: "destructive",
+      });
+    }
+  }, [script, hook, seriesLabel, toast]);
+
   // Skip to manual script entry (Step 2 with empty script)
   const skipToManualScript = useCallback(() => {
     setScript("");
@@ -1012,6 +1077,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     resetState,
     saveScriptToLibrary,
     exportScriptTxt,
+    exportScriptSrt,
     skipToManualScript,
     saveOnePagerToLibrary,
   };
