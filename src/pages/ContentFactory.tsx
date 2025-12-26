@@ -17,6 +17,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sparkles,
   ArrowRight,
   ArrowLeft,
@@ -37,6 +43,9 @@ import {
   PenLine,
   Import,
   Search,
+  ChevronDown,
+  FileType,
+  Subtitles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExports } from "@/hooks/useExports";
@@ -158,6 +167,7 @@ export default function ContentFactory() {
     saveAndExportAll,
     saveScriptToLibrary,
     exportScriptTxt,
+    exportScriptSrt,
     skipToManualScript,
     saveOnePagerToLibrary,
     isSavingOnePager,
@@ -427,15 +437,29 @@ export default function ContentFactory() {
                   <Save className="w-4 h-4 mr-2" />
                   Save to Scripts
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={exportScriptTxt}
-                  disabled={!script}
-                >
-                  <FileDown className="w-4 h-4 mr-2" />
-                  Export .txt
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!script}
+                    >
+                      <FileDown className="w-4 h-4 mr-2" />
+                      Export Script
+                      <ChevronDown className="w-3 h-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={exportScriptTxt}>
+                      <FileType className="w-4 h-4 mr-2" />
+                      Export as .txt
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={exportScriptSrt}>
+                      <Subtitles className="w-4 h-4 mr-2" />
+                      Export as .srt (Subtitles)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <div className="flex justify-between pt-4">

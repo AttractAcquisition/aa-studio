@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Plus, FileText, Search, Copy, Trash2, Pencil, CheckCircle, Filter, Wand2 } from "lucide-react";
+import { Plus, FileText, Search, Copy, Trash2, Pencil, CheckCircle, Filter, Wand2, FileDown, ChevronDown, FileType, Subtitles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -184,6 +190,58 @@ export default function ScriptLibrary() {
     navigate(`/content-factory?importScript=${scriptId}`);
   };
 
+  // Export script as .txt
+  const handleExportTxt = (script: ScriptLibraryItem) => {
+    const text = script.hook ? `${script.hook}\n\n${script.body}` : script.body;
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${script.title}_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Script exported as .txt");
+  };
+
+  // Export script as .srt (subtitles)
+  const handleExportSrt = (script: ScriptLibraryItem) => {
+    const text = script.hook ? `${script.hook}\n\n${script.body}` : script.body;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+    const secondsPerSentence = 2.5;
+    let srtContent = "";
+    let currentTime = 0;
+
+    const formatTime = (seconds: number) => {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.floor(seconds % 60);
+      const ms = Math.floor((seconds % 1) * 1000);
+      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")},${ms.toString().padStart(3, "0")}`;
+    };
+
+    sentences.forEach((sentence, index) => {
+      const startTime = currentTime;
+      const endTime = currentTime + secondsPerSentence;
+      srtContent += `${index + 1}\n`;
+      srtContent += `${formatTime(startTime)} --> ${formatTime(endTime)}\n`;
+      srtContent += `${sentence.trim()}\n\n`;
+      currentTime = endTime;
+    });
+
+    const blob = new Blob([srtContent], { type: "application/x-subrip" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${script.title}_${Date.now()}.srt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Script exported as .srt subtitles");
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -343,6 +401,27 @@ export default function ScriptLibrary() {
                     {script.title}
                   </h3>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                        >
+                          <FileDown className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        <DropdownMenuItem onClick={() => handleExportTxt(script)}>
+                          <FileType className="h-3.5 w-3.5 mr-2" />
+                          Export .txt
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleExportSrt(script)}>
+                          <Subtitles className="h-3.5 w-3.5 mr-2" />
+                          Export .srt
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       variant="ghost"
                       size="icon"
