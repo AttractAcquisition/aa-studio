@@ -25,6 +25,7 @@ import {
   Copy,
   Play,
   FileVideo,
+  Download,
 } from "lucide-react";
 import { useVideos, VideoRow } from "@/hooks/useVideos";
 import { toast } from "sonner";
@@ -449,6 +450,32 @@ function VideoCard({
         >
           <Copy className="w-4 h-4 mr-2" />
           Copy Link
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          onClick={async () => {
+            try {
+              const downloadUrl = url || await getSignedUrl(video);
+              const response = await fetch(downloadUrl);
+              const blob = await response.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = blobUrl;
+              a.download = `${video.title}.${video.mime?.split("/")[1] || "mp4"}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(blobUrl);
+              toast.success("Download started!");
+            } catch (error) {
+              toast.error("Failed to download video");
+            }
+          }}
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Download
         </Button>
         <Button
           variant="ghost"
