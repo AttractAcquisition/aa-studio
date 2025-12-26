@@ -979,6 +979,8 @@ export type Database = {
       }
       videos: {
         Row: {
+          audio_mime: string | null
+          audio_path: string | null
           bucket: string
           bytes: number | null
           created_at: string
@@ -992,6 +994,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          audio_mime?: string | null
+          audio_path?: string | null
           bucket?: string
           bytes?: number | null
           created_at?: string
@@ -1005,6 +1009,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          audio_mime?: string | null
+          audio_path?: string | null
           bucket?: string
           bytes?: number | null
           created_at?: string

@@ -55,12 +55,15 @@ export default function RecordingStudio() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const [recordingState, setRecordingState] = useState<RecordingState>("idle");
   const [recordingMode, setRecordingMode] = useState<RecordingMode>("camera");
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [title, setTitle] = useState("");
@@ -249,18 +252,29 @@ export default function RecordingStudio() {
     if (!streamRef.current) return;
 
     chunksRef.current = [];
+    audioChunksRef.current = [];
     
-    // Prefer MP4 if supported (Safari), otherwise use WebM
-    let mimeType = "video/webm";
+    // Determine best video mime type
+    let videoMimeType = "video/webm";
     if (MediaRecorder.isTypeSupported("video/mp4")) {
-      mimeType = "video/mp4";
+      videoMimeType = "video/mp4";
     } else if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) {
-      mimeType = "video/webm;codecs=vp9";
+      videoMimeType = "video/webm;codecs=vp9";
     }
     
-    console.log("Recording with mimeType:", mimeType);
+    // Determine best audio-only mime type for captions
+    let audioMimeType = "audio/webm";
+    if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+      audioMimeType = "audio/webm;codecs=opus";
+    } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+      audioMimeType = "audio/mp4";
+    }
     
-    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
+    console.log("Recording video with mimeType:", videoMimeType);
+    console.log("Recording audio with mimeType:", audioMimeType);
+    
+    // Video recorder
+    const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType: videoMimeType });
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) {
@@ -269,7 +283,7 @@ export default function RecordingStudio() {
     };
 
     mediaRecorder.onstop = () => {
-      const actualMime = mimeType.includes("mp4") ? "video/mp4" : "video/webm";
+      const actualMime = videoMimeType.includes("mp4") ? "video/mp4" : "video/webm";
       const blob = new Blob(chunksRef.current, { type: actualMime });
       setRecordedBlob(blob);
       const url = URL.createObjectURL(blob);
@@ -279,10 +293,34 @@ export default function RecordingStudio() {
       if (actualMime === "video/webm") {
         toast.message("Saved as WebM", {
           description:
-            "This browser can't record MP4 directly. Download will be .webm unless you convert with an external transcoder.",
+            "This browser can't record MP4 directly. Download will be .webm.",
         });
       }
     };
+
+    // Audio-only recorder for captions (only if audio tracks exist)
+    const audioTracks = streamRef.current.getAudioTracks();
+    if (audioTracks.length > 0) {
+      const audioOnlyStream = new MediaStream(audioTracks);
+      const audioRecorder = new MediaRecorder(audioOnlyStream, { mimeType: audioMimeType });
+      
+      audioRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+      
+      audioRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: audioMimeType.includes("mp4") ? "audio/mp4" : "audio/webm" });
+        setRecordedAudioBlob(audioBlob);
+        console.log("Audio blob ready for captions:", audioBlob.size, "bytes");
+      };
+      
+      audioRecorderRef.current = audioRecorder;
+      audioRecorder.start(1000);
+    } else {
+      setRecordedAudioBlob(null);
+    }
 
     mediaRecorderRef.current = mediaRecorder;
     mediaRecorder.start(1000);
@@ -297,6 +335,9 @@ export default function RecordingStudio() {
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && recordingState === "recording") {
       mediaRecorderRef.current.stop();
+      if (audioRecorderRef.current) {
+        audioRecorderRef.current.stop();
+      }
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
@@ -308,6 +349,7 @@ export default function RecordingStudio() {
       URL.revokeObjectURL(recordedUrl);
     }
     setRecordedBlob(null);
+    setRecordedAudioBlob(null);
     setRecordedUrl(null);
     setRecordingState("idle");
     setDuration(0);
@@ -325,31 +367,60 @@ export default function RecordingStudio() {
     try {
       // Detect actual mime type from blob
       const isMP4 = recordedBlob.type.includes("mp4");
-      const extension = isMP4 ? "mp4" : "webm";
-      const mimeType = isMP4 ? "video/mp4" : "video/webm";
+      const videoExtension = isMP4 ? "mp4" : "webm";
+      const videoMimeType = isMP4 ? "video/mp4" : "video/webm";
       
-      const filename = `${Date.now()}.${extension}`;
-      const path = `${user.id}/${filename}`;
+      const timestamp = Date.now();
+      const videoFilename = `${timestamp}.${videoExtension}`;
+      const videoPath = `${user.id}/${videoFilename}`;
 
+      // Upload video
       const { error: uploadError } = await supabase.storage
         .from("aa-videos")
-        .upload(path, recordedBlob, {
-          contentType: mimeType,
+        .upload(videoPath, recordedBlob, {
+          contentType: videoMimeType,
           upsert: false,
         });
 
       if (uploadError) throw uploadError;
 
+      // Upload audio blob for captions (if available)
+      let audioPath: string | null = null;
+      let audioMime: string | null = null;
+      
+      if (recordedAudioBlob && hasAudio) {
+        const audioExtension = recordedAudioBlob.type.includes("mp4") ? "m4a" : "webm";
+        audioMime = recordedAudioBlob.type.includes("mp4") ? "audio/mp4" : "audio/webm";
+        const audioFilename = `${timestamp}_audio.${audioExtension}`;
+        audioPath = `${user.id}/${audioFilename}`;
+        
+        const { error: audioUploadError } = await supabase.storage
+          .from("aa-videos")
+          .upload(audioPath, recordedAudioBlob, {
+            contentType: audioMime,
+            upsert: false,
+          });
+          
+        if (audioUploadError) {
+          console.warn("Failed to upload audio blob:", audioUploadError.message);
+          audioPath = null;
+          audioMime = null;
+        } else {
+          console.log("Audio blob uploaded for captions:", audioPath);
+        }
+      }
+
       const { data: insertData, error: dbError } = await supabase.from("videos").insert({
         user_id: user.id,
         title: title || `Recording ${new Date().toLocaleDateString()}`,
-        path,
+        path: videoPath,
         bucket: "aa-videos",
-        mime: mimeType,
+        mime: videoMimeType,
         bytes: recordedBlob.size,
         platform: "instagram",
         has_audio: hasAudio,
-        // Store aspect ratio metadata in description as JSON
+        audio_path: audioPath,
+        audio_mime: audioMime,
         description: JSON.stringify({ aspect_ratio: selectedAspectRatio, resolution: `${currentRatio.width}x${currentRatio.height}` }),
       }).select().single();
 
