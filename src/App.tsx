@@ -19,6 +19,7 @@ import Videos from "./pages/Videos";
 import OnePagers from "./pages/OnePagers";
 import RecordingStudio from "./pages/RecordingStudio";
 import BundleDetail from "./pages/BundleDetail";
+import VideoGenerator from "./pages/VideoGenerator";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -47,6 +48,7 @@ const App = () => (
           <Route path="/one-pagers" element={<AuthGuard><OnePagers /></AuthGuard>} />
           <Route path="/record" element={<AuthGuard><RecordingStudio /></AuthGuard>} />
           <Route path="/bundles/:id" element={<AuthGuard><BundleDetail /></AuthGuard>} />
+          <Route path="/video-generator" element={<AuthGuard><VideoGenerator /></AuthGuard>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

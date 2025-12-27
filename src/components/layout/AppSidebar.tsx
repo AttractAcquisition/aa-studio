@@ -16,6 +16,7 @@ import {
   MessageCircle,
   Upload,
   FileText,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +27,7 @@ const navItems = [
   { title: "Scripts", url: "/scripts", icon: FileText },
   { title: "One-Pagers", url: "/one-pagers", icon: FileText },
   { title: "Content Factory", url: "/content-factory", icon: Factory },
+  { title: "Video Generator", url: "/video-generator", icon: Video },
   { title: "Content Calendar", url: "/calendar", icon: Calendar },
   { title: "Asset Vault", url: "/assets", icon: FolderOpen },
   { title: "Proof Vault", url: "/proofs", icon: Trophy },

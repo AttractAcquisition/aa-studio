@@ -23,3 +23,24 @@ verify_jwt = false
 
 [functions.convert-video]
 verify_jwt = false
+
+[functions.video-save-script]
+verify_jwt = false
+
+[functions.video-generate-plan]
+verify_jwt = false
+
+[functions.video-update-plan]
+verify_jwt = false
+
+[functions.video-approve-plan]
+verify_jwt = false
+
+[functions.video-create-render]
+verify_jwt = false
+
+[functions.video-render]
+verify_jwt = false
+
+[functions.video-render-status]
+verify_jwt = false

@@ -14,6 +14,125 @@ export type Database = {
   }
   public: {
     Tables: {
+      aa_scene_plans: {
+        Row: {
+          created_at: string | null
+          duration_sec: number | null
+          id: string
+          is_approved: boolean | null
+          plan_json: Json
+          script_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          duration_sec?: number | null
+          id?: string
+          is_approved?: boolean | null
+          plan_json: Json
+          script_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          duration_sec?: number | null
+          id?: string
+          is_approved?: boolean | null
+          plan_json?: Json
+          script_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aa_scene_plans_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "aa_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      aa_scripts: {
+        Row: {
+          created_at: string | null
+          id: string
+          script: string
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          script: string
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          script?: string
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      aa_video_renders: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          id: string
+          plan_id: string
+          renderer_job_id: string | null
+          script_id: string
+          status: string | null
+          updated_at: string | null
+          user_id: string
+          video_url: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          plan_id: string
+          renderer_job_id?: string | null
+          script_id: string
+          status?: string | null
+          updated_at?: string | null
+          user_id: string
+          video_url?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          plan_id?: string
+          renderer_job_id?: string | null
+          script_id?: string
+          status?: string | null
+          updated_at?: string | null
+          user_id?: string
+          video_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "aa_video_renders_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "aa_scene_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "aa_video_renders_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "aa_scripts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       assets: {
         Row: {
           bucket: string
