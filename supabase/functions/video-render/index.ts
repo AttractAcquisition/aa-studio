@@ -1,3 +1,5 @@
+// supabase/functions/video-render/index.ts
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -25,7 +27,11 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
     if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -45,10 +51,12 @@ Deno.serve(async (req) => {
     // Load render + plan
     const { data: render, error: renderError } = await supabase
       .from("aa_video_renders")
-      .select(`
+      .select(
+        `
         *,
         plan:aa_scene_plans(plan_json, is_approved)
-      `)
+      `
+      )
       .eq("id", render_id)
       .eq("user_id", user.id)
       .single();
@@ -61,12 +69,13 @@ Deno.serve(async (req) => {
     }
 
     if (render.status === "done") {
-      return new Response(JSON.stringify({ 
-        status: "done", 
-        video_url: render.video_url 
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          status: "done",
+          video_url: render.video_url,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     if (render.status === "rendering") {
@@ -76,10 +85,7 @@ Deno.serve(async (req) => {
     }
 
     // Set status to rendering
-    await supabase
-      .from("aa_video_renders")
-      .update({ status: "rendering" })
-      .eq("id", render_id);
+    await supabase.from("aa_video_renders").update({ status: "rendering", error: null }).eq("id", render_id);
 
     const rendererUrl = Deno.env.get("RENDERER_URL");
     const renderSecret = Deno.env.get("RENDER_SECRET");
@@ -91,7 +97,7 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${renderSecret}`,
+            Authorization: `Bearer ${renderSecret}`,
           },
           body: JSON.stringify({
             render_id,
@@ -100,42 +106,84 @@ Deno.serve(async (req) => {
           }),
         });
 
-        const result = await response.json();
+        // Renderer might return:
+        // - 202 Accepted (async job started)
+        // - 200 OK with { ok: true, video_url } (sync)
+        // - 4xx/5xx with error
+        let result: any = null;
+        try {
+          result = await response.json();
+        } catch {
+          // If it's not JSON, we'll handle using status codes
+        }
 
-        if (result.ok && result.video_url) {
+        const accepted =
+          response.status === 202 ||
+          result?.accepted === true ||
+          // some implementations do ok=true but no video_url when async
+          (result?.ok === true && !result?.video_url);
+
+        if (accepted) {
+          const jobId = result?.renderer_job_id || result?.rendererJobId || result?.jobId || null;
+
+          await supabase
+            .from("aa_video_renders")
+            .update({
+              status: "rendering",
+              renderer_job_id: jobId,
+              error: null,
+            })
+            .eq("id", render_id);
+
+          return new Response(
+            JSON.stringify({
+              status: "rendering",
+              renderer_job_id: jobId,
+              accepted: true,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        if (result?.ok && result?.video_url) {
           await supabase
             .from("aa_video_renders")
             .update({
               status: "done",
               video_url: result.video_url,
               renderer_job_id: result.renderer_job_id || null,
+              error: null,
             })
             .eq("id", render_id);
 
-          return new Response(JSON.stringify({ 
-            status: "done", 
-            video_url: result.video_url 
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        } else {
-          await supabase
-            .from("aa_video_renders")
-            .update({
-              status: "failed",
-              error: result.error || "Renderer returned error",
-            })
-            .eq("id", render_id);
-
-          return new Response(JSON.stringify({ 
-            status: "failed", 
-            error: result.error 
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({
+              status: "done",
+              video_url: result.video_url,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
+
+        // Real failure (renderer responded but not accepted/done)
+        const errMsg =
+          result?.error ||
+          (response.ok ? "Renderer returned error" : `Renderer error (HTTP ${response.status})`);
+
+        await supabase
+          .from("aa_video_renders")
+          .update({
+            status: "failed",
+            error: errMsg,
+          })
+          .eq("id", render_id);
+
+        return new Response(JSON.stringify({ status: "failed", error: errMsg }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       } catch (fetchErr) {
         console.error("Renderer fetch error:", fetchErr);
+
         await supabase
           .from("aa_video_renders")
           .update({
@@ -144,22 +192,20 @@ Deno.serve(async (req) => {
           })
           .eq("id", render_id);
 
-        return new Response(JSON.stringify({ 
-          status: "failed", 
-          error: "Failed to connect to renderer" 
-        }), {
+        return new Response(JSON.stringify({ status: "failed", error: "Failed to connect to renderer" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
     } else {
       // Stub mode: simulate rendering with placeholder
       console.log("Stub mode: no RENDERER_URL configured, using placeholder");
-      
+
       // Simulate a short delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Use a placeholder video URL
-      const placeholderUrl = "https://dwhmvzooerxejustfqpt.supabase.co/storage/v1/object/public/aa-videos/placeholder/sample.mp4";
+      const placeholderUrl =
+        "https://dwhmvzooerxejustfqpt.supabase.co/storage/v1/object/public/aa-videos/placeholder/sample.mp4";
 
       await supabase
         .from("aa_video_renders")
@@ -167,16 +213,18 @@ Deno.serve(async (req) => {
           status: "done",
           video_url: placeholderUrl,
           renderer_job_id: "stub-" + Date.now(),
+          error: null,
         })
         .eq("id", render_id);
 
-      return new Response(JSON.stringify({ 
-        status: "done", 
-        video_url: placeholderUrl,
-        stub: true 
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          status: "done",
+          video_url: placeholderUrl,
+          stub: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
   } catch (err) {
     console.error("Error:", err);
