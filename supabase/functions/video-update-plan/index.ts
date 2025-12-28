@@ -17,6 +17,26 @@ const ALLOWED_SCENE_TYPES = [
   "threeStep", "objectionBubbles", "offerStack", "testDashboard", "winnerLoop"
 ];
 
+// Placeholder patterns to reject
+const PLACEHOLDER_PATTERNS = [
+  /^EXAMPLE$/i,
+  /^\.\.\.$/,
+  /^''$/,
+  /^""$/,
+  /^\s*$/,
+  /^placeholder$/i,
+  /^TODO$/i,
+  /^TBD$/i,
+  /^\[.*\]$/,
+];
+
+function isPlaceholder(value: string | undefined | null): boolean {
+  if (!value || typeof value !== 'string') return true;
+  const trimmed = value.trim();
+  if (trimmed === '') return true;
+  return PLACEHOLDER_PATTERNS.some(pattern => pattern.test(trimmed));
+}
+
 interface ValidationResult {
   valid: boolean;
   errors: string[];
@@ -29,12 +49,23 @@ function validatePlanJson(planJson: any): ValidationResult {
     return { valid: false, errors: ["Invalid plan structure"] };
   }
 
-  // Check brand colors
+  // Check brand colors - must match AA exactly
   if (planJson.brand) {
     if (planJson.brand.bg !== AA_BRAND.bg) errors.push("Brand bg color must be #0B0F19");
     if (planJson.brand.primary !== AA_BRAND.primary) errors.push("Brand primary color must be #6A00F4");
     if (planJson.brand.secondary !== AA_BRAND.secondary) errors.push("Brand secondary color must be #9D4BFF");
     if (planJson.brand.soft !== AA_BRAND.soft) errors.push("Brand soft color must be #EBD7FF");
+  } else {
+    errors.push("Missing brand colors");
+  }
+
+  // Ensure format defaults
+  if (!planJson.format) {
+    planJson.format = { w: 1080, h: 1920, fps: 30 };
+  } else {
+    if (!planJson.format.w) planJson.format.w = 1080;
+    if (!planJson.format.h) planJson.format.h = 1920;
+    if (!planJson.format.fps) planJson.format.fps = 30;
   }
 
   // Check scenes
@@ -44,40 +75,86 @@ function validatePlanJson(planJson: any): ValidationResult {
 
   let totalDuration = 0;
 
-  for (const scene of planJson.scenes) {
+  for (let i = 0; i < planJson.scenes.length; i++) {
+    const scene = planJson.scenes[i];
+    const sceneNum = i + 1;
+    
     if (!ALLOWED_SCENE_TYPES.includes(scene.type)) {
-      errors.push(`Invalid scene type: ${scene.type}`);
+      errors.push(`Scene ${sceneNum}: invalid type "${scene.type}"`);
       continue;
     }
 
+    // Validate sec range (1-12)
+    if (typeof scene.sec !== 'number' || scene.sec < 1 || scene.sec > 12) {
+      errors.push(`Scene ${sceneNum}: duration must be 1-12 seconds`);
+    }
+    
     totalDuration += scene.sec || 0;
 
-    // Check required fields per type
+    // Check required fields per type (reject placeholders)
     switch (scene.type) {
       case "hook":
-        if (!scene.headline) errors.push("hook: headline required");
+        if (isPlaceholder(scene.headline)) {
+          errors.push(`Scene ${sceneNum} (hook): headline is required and cannot be empty/placeholder`);
+        }
         break;
+        
       case "ruleChips":
-        if (!Array.isArray(scene.chips) || scene.chips.length === 0) errors.push("ruleChips: chips required");
+        if (!Array.isArray(scene.chips) || scene.chips.length === 0) {
+          errors.push(`Scene ${sceneNum} (ruleChips): at least one chip required`);
+        }
         break;
+        
       case "method":
-        if (!scene.headline) errors.push("method: headline required");
+        if (isPlaceholder(scene.headline)) {
+          errors.push(`Scene ${sceneNum} (method): headline is required and cannot be empty/placeholder`);
+        }
         break;
+        
       case "angleCard":
-        if (!scene.name) errors.push("angleCard: name required");
+        if (isPlaceholder(scene.name)) {
+          errors.push(`Scene ${sceneNum} (angleCard): name is required and cannot be empty/placeholder`);
+        }
+        if (isPlaceholder(scene.line)) {
+          errors.push(`Scene ${sceneNum} (angleCard): line is required and cannot be empty/placeholder`);
+        }
+        // Example is optional - if empty/placeholder, ensure showExample is false
+        if (isPlaceholder(scene.example) && scene.showExample !== false) {
+          // Auto-fix: set showExample to false
+          scene.showExample = false;
+        }
         break;
+        
       case "threeStep":
-        if (!Array.isArray(scene.steps) || scene.steps.length !== 3) errors.push("threeStep: 3 steps required");
+        if (!Array.isArray(scene.steps) || scene.steps.length !== 3) {
+          errors.push(`Scene ${sceneNum} (threeStep): exactly 3 steps required`);
+        } else if (scene.steps.some((s: string) => isPlaceholder(s))) {
+          errors.push(`Scene ${sceneNum} (threeStep): steps cannot be empty/placeholder`);
+        }
         break;
+        
       case "winnerLoop":
-        if (!Array.isArray(scene.lines) || scene.lines.length < 1) errors.push("winnerLoop: lines required");
+        if (!Array.isArray(scene.lines) || scene.lines.length < 1) {
+          errors.push(`Scene ${sceneNum} (winnerLoop): at least one line required`);
+        } else if (scene.lines.every((l: string) => isPlaceholder(l))) {
+          errors.push(`Scene ${sceneNum} (winnerLoop): lines cannot all be empty/placeholder`);
+        }
+        break;
+        
+      case "testDashboard":
+        if (isPlaceholder(scene.headline)) {
+          errors.push(`Scene ${sceneNum} (testDashboard): headline is required and cannot be empty/placeholder`);
+        }
         break;
     }
   }
 
   // Check duration
-  if (totalDuration < 55 || totalDuration > 65) {
-    errors.push(`Total duration must be 55-65 seconds (current: ${totalDuration}s)`);
+  if (totalDuration < 55) {
+    errors.push(`Total duration too short: ${totalDuration}s (minimum 55s)`);
+  }
+  if (totalDuration > 65) {
+    errors.push(`Total duration too long: ${totalDuration}s (maximum 65s)`);
   }
 
   return { valid: errors.length === 0, errors };
@@ -120,7 +197,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Validate plan
+    // Validate plan strictly
     const validation = validatePlanJson(plan_json);
     if (!validation.valid) {
       return new Response(JSON.stringify({ 
@@ -151,7 +228,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log("Plan updated:", plan_id);
+    console.log("Plan updated:", plan_id, "duration:", totalDuration + "s");
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
