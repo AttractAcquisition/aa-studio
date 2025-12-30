@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { GripVertical, Clock } from "lucide-react";
-import type { Scene, PlanJson } from "@/types/video-generator";
+import type { Scene, PlanJson } from "@/types/plan";
 
 interface SceneEditorProps {
   planJson: PlanJson;
@@ -18,9 +18,11 @@ export function SceneEditor({ planJson, onChange, disabled }: SceneEditorProps) 
   const totalDuration = planJson.scenes.reduce((sum, s) => sum + (s.sec || 0), 0);
   const isValidDuration = totalDuration >= 55 && totalDuration <= 65;
 
-  const updateScene = (index: number, updates: Partial<Scene>) => {
-    const newScenes = [...planJson.scenes];
-    newScenes[index] = { ...newScenes[index], ...updates };
+  const updateScene = (index: number, updates: Record<string, unknown>) => {
+    const newScenes = planJson.scenes.map((scene, i) => {
+      if (i !== index) return scene;
+      return { ...scene, ...updates } as Scene;
+    });
     onChange({ ...planJson, scenes: newScenes });
   };
 
@@ -201,9 +203,16 @@ export function SceneEditor({ planJson, onChange, disabled }: SceneEditorProps) 
                     <Label>Steps (comma separated)</Label>
                     <Input
                       value={(scene.steps || []).join(", ")}
-                      onChange={(e) => updateScene(index, { 
-                        steps: e.target.value.split(",").map(s => s.trim()) 
-                      })}
+                      onChange={(e) => {
+                        const parts = e.target.value.split(",").map(s => s.trim());
+                        // Ensure exactly 3 elements for ThreeStepScene
+                        const steps: [string, string, string] = [
+                          parts[0] || "",
+                          parts[1] || "",
+                          parts[2] || ""
+                        ];
+                        updateScene(index, { steps });
+                      }}
                       placeholder="Step 1, Step 2, Step 3"
                       disabled={disabled}
                     />
