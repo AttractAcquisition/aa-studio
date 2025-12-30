@@ -133,6 +133,21 @@ export type Database = {
           },
         ]
       }
+      admin_users: {
+        Row: {
+          created_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       assets: {
         Row: {
           bucket: string
@@ -762,6 +777,927 @@ export type Database = {
         }
         Relationships: []
       }
+      portal_attraction_system: {
+        Row: {
+          ad_account_status: string | null
+          approval_gate_passed: boolean | null
+          attraction_plan_approved: boolean | null
+          attraction_strategy_summary: string | null
+          blockers_note: string | null
+          brand_assets_link: string | null
+          brand_assets_received: boolean | null
+          budget_range: string | null
+          campaign_or_organic_active: boolean | null
+          campaigns_live: boolean | null
+          constraints: string | null
+          content_angles: string | null
+          content_pillars: string | null
+          content_plan_doc_link: string | null
+          created_at: string | null
+          creative_notes: string | null
+          creative_pack_approved: boolean | null
+          creative_pack_link: string | null
+          creative_pack_scope: string | null
+          id: string
+          kpi_targets: string | null
+          lead_destination: string | null
+          payment_method: string | null
+          performance_snapshot_link: string | null
+          positioning_notes: string | null
+          posting_structure: string | null
+          primary_offer: string | null
+          proof_link: string | null
+          proof_received: boolean | null
+          reporting_cadence: string | null
+          retargeting_enabled: boolean | null
+          retargeting_notes: string | null
+          running_ads: boolean | null
+          service_area: string | null
+          target_audience: string | null
+          tracking_reporting_confirmed: boolean | null
+          tracking_setup_confirmed: boolean | null
+          updated_at: string | null
+          user_id: string
+          weekly_iteration_notes: string | null
+        }
+        Insert: {
+          ad_account_status?: string | null
+          approval_gate_passed?: boolean | null
+          attraction_plan_approved?: boolean | null
+          attraction_strategy_summary?: string | null
+          blockers_note?: string | null
+          brand_assets_link?: string | null
+          brand_assets_received?: boolean | null
+          budget_range?: string | null
+          campaign_or_organic_active?: boolean | null
+          campaigns_live?: boolean | null
+          constraints?: string | null
+          content_angles?: string | null
+          content_pillars?: string | null
+          content_plan_doc_link?: string | null
+          created_at?: string | null
+          creative_notes?: string | null
+          creative_pack_approved?: boolean | null
+          creative_pack_link?: string | null
+          creative_pack_scope?: string | null
+          id?: string
+          kpi_targets?: string | null
+          lead_destination?: string | null
+          payment_method?: string | null
+          performance_snapshot_link?: string | null
+          positioning_notes?: string | null
+          posting_structure?: string | null
+          primary_offer?: string | null
+          proof_link?: string | null
+          proof_received?: boolean | null
+          reporting_cadence?: string | null
+          retargeting_enabled?: boolean | null
+          retargeting_notes?: string | null
+          running_ads?: boolean | null
+          service_area?: string | null
+          target_audience?: string | null
+          tracking_reporting_confirmed?: boolean | null
+          tracking_setup_confirmed?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          weekly_iteration_notes?: string | null
+        }
+        Update: {
+          ad_account_status?: string | null
+          approval_gate_passed?: boolean | null
+          attraction_plan_approved?: boolean | null
+          attraction_strategy_summary?: string | null
+          blockers_note?: string | null
+          brand_assets_link?: string | null
+          brand_assets_received?: boolean | null
+          budget_range?: string | null
+          campaign_or_organic_active?: boolean | null
+          campaigns_live?: boolean | null
+          constraints?: string | null
+          content_angles?: string | null
+          content_pillars?: string | null
+          content_plan_doc_link?: string | null
+          created_at?: string | null
+          creative_notes?: string | null
+          creative_pack_approved?: boolean | null
+          creative_pack_link?: string | null
+          creative_pack_scope?: string | null
+          id?: string
+          kpi_targets?: string | null
+          lead_destination?: string | null
+          payment_method?: string | null
+          performance_snapshot_link?: string | null
+          positioning_notes?: string | null
+          posting_structure?: string | null
+          primary_offer?: string | null
+          proof_link?: string | null
+          proof_received?: boolean | null
+          reporting_cadence?: string | null
+          retargeting_enabled?: boolean | null
+          retargeting_notes?: string | null
+          running_ads?: boolean | null
+          service_area?: string | null
+          target_audience?: string | null
+          tracking_reporting_confirmed?: boolean | null
+          tracking_setup_confirmed?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          weekly_iteration_notes?: string | null
+        }
+        Relationships: []
+      }
+      portal_client_onboarding: {
+        Row: {
+          access_checklist_link: string | null
+          access_pending_items: string | null
+          access_status: string | null
+          access_verified: boolean | null
+          blockers_note: string | null
+          call_completed: boolean | null
+          call_link: string | null
+          capacity_confirmed: boolean | null
+          capacity_per_week: number | null
+          client_brief_link: string | null
+          constraints: string | null
+          created_at: string | null
+          delivery_timeline_link: string | null
+          drive_folder_link: string | null
+          id: string
+          lead_destination_confirmed: boolean | null
+          lead_destination_link: string | null
+          lead_destination_type: string | null
+          offer_confirmed: boolean | null
+          onboarding_summary_link: string | null
+          positioning_approved: boolean | null
+          positioning_statement: string | null
+          pricing_confirmed: boolean | null
+          pricing_summary: string | null
+          primary_offer_name: string | null
+          primary_offer_notes: string | null
+          promotions_seasonality: string | null
+          target_audience_summary: string | null
+          timeline_confirmed: boolean | null
+          tracking_status: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_checklist_link?: string | null
+          access_pending_items?: string | null
+          access_status?: string | null
+          access_verified?: boolean | null
+          blockers_note?: string | null
+          call_completed?: boolean | null
+          call_link?: string | null
+          capacity_confirmed?: boolean | null
+          capacity_per_week?: number | null
+          client_brief_link?: string | null
+          constraints?: string | null
+          created_at?: string | null
+          delivery_timeline_link?: string | null
+          drive_folder_link?: string | null
+          id?: string
+          lead_destination_confirmed?: boolean | null
+          lead_destination_link?: string | null
+          lead_destination_type?: string | null
+          offer_confirmed?: boolean | null
+          onboarding_summary_link?: string | null
+          positioning_approved?: boolean | null
+          positioning_statement?: string | null
+          pricing_confirmed?: boolean | null
+          pricing_summary?: string | null
+          primary_offer_name?: string | null
+          primary_offer_notes?: string | null
+          promotions_seasonality?: string | null
+          target_audience_summary?: string | null
+          timeline_confirmed?: boolean | null
+          tracking_status?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_checklist_link?: string | null
+          access_pending_items?: string | null
+          access_status?: string | null
+          access_verified?: boolean | null
+          blockers_note?: string | null
+          call_completed?: boolean | null
+          call_link?: string | null
+          capacity_confirmed?: boolean | null
+          capacity_per_week?: number | null
+          client_brief_link?: string | null
+          constraints?: string | null
+          created_at?: string | null
+          delivery_timeline_link?: string | null
+          drive_folder_link?: string | null
+          id?: string
+          lead_destination_confirmed?: boolean | null
+          lead_destination_link?: string | null
+          lead_destination_type?: string | null
+          offer_confirmed?: boolean | null
+          onboarding_summary_link?: string | null
+          positioning_approved?: boolean | null
+          positioning_statement?: string | null
+          pricing_confirmed?: boolean | null
+          pricing_summary?: string | null
+          primary_offer_name?: string | null
+          primary_offer_notes?: string | null
+          promotions_seasonality?: string | null
+          target_audience_summary?: string | null
+          timeline_confirmed?: boolean | null
+          tracking_status?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      portal_clients: {
+        Row: {
+          business_description: string | null
+          company_name: string | null
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          notes: string | null
+          updated_at: string
+          user_id: string
+          whatsapp: string | null
+        }
+        Insert: {
+          business_description?: string | null
+          company_name?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+          whatsapp?: string | null
+        }
+        Update: {
+          business_description?: string | null
+          company_name?: string | null
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+          whatsapp?: string | null
+        }
+        Relationships: []
+      }
+      portal_conversion_system: {
+        Row: {
+          approval_gate_passed: boolean | null
+          availability_windows: string | null
+          blockers_note: string | null
+          booked_rate_target: string | null
+          booking_flow_approved: boolean | null
+          booking_friction_fixes: string | null
+          closing_script: string | null
+          confirmation_messages: string | null
+          constraints: string | null
+          conversion_flow_steps: string | null
+          created_at: string | null
+          cta_next_step: string | null
+          current_booking_links: string | null
+          current_booking_tools: string | null
+          deposit_rules: string | null
+          dropoff_points: string | null
+          flow_doc_link: string | null
+          id: string
+          lead_response_coverage: string | null
+          messages_doc_link: string | null
+          objection_handling_script: string | null
+          payment_method: string | null
+          preferred_booking_method: string | null
+          preframe_messages: string | null
+          pricing_process_current: string | null
+          qualifying_script: string | null
+          reminder_messages: string | null
+          reminders_approved: boolean | null
+          scripts_approved: boolean | null
+          scripts_doc_link: string | null
+          show_rate_target: string | null
+          tracking_confirmed: boolean | null
+          tracking_link: string | null
+          tracking_method: string | null
+          tracking_notes_template: string | null
+          updated_at: string | null
+          user_id: string
+          uses_deposit: boolean | null
+        }
+        Insert: {
+          approval_gate_passed?: boolean | null
+          availability_windows?: string | null
+          blockers_note?: string | null
+          booked_rate_target?: string | null
+          booking_flow_approved?: boolean | null
+          booking_friction_fixes?: string | null
+          closing_script?: string | null
+          confirmation_messages?: string | null
+          constraints?: string | null
+          conversion_flow_steps?: string | null
+          created_at?: string | null
+          cta_next_step?: string | null
+          current_booking_links?: string | null
+          current_booking_tools?: string | null
+          deposit_rules?: string | null
+          dropoff_points?: string | null
+          flow_doc_link?: string | null
+          id?: string
+          lead_response_coverage?: string | null
+          messages_doc_link?: string | null
+          objection_handling_script?: string | null
+          payment_method?: string | null
+          preferred_booking_method?: string | null
+          preframe_messages?: string | null
+          pricing_process_current?: string | null
+          qualifying_script?: string | null
+          reminder_messages?: string | null
+          reminders_approved?: boolean | null
+          scripts_approved?: boolean | null
+          scripts_doc_link?: string | null
+          show_rate_target?: string | null
+          tracking_confirmed?: boolean | null
+          tracking_link?: string | null
+          tracking_method?: string | null
+          tracking_notes_template?: string | null
+          updated_at?: string | null
+          user_id: string
+          uses_deposit?: boolean | null
+        }
+        Update: {
+          approval_gate_passed?: boolean | null
+          availability_windows?: string | null
+          blockers_note?: string | null
+          booked_rate_target?: string | null
+          booking_flow_approved?: boolean | null
+          booking_friction_fixes?: string | null
+          closing_script?: string | null
+          confirmation_messages?: string | null
+          constraints?: string | null
+          conversion_flow_steps?: string | null
+          created_at?: string | null
+          cta_next_step?: string | null
+          current_booking_links?: string | null
+          current_booking_tools?: string | null
+          deposit_rules?: string | null
+          dropoff_points?: string | null
+          flow_doc_link?: string | null
+          id?: string
+          lead_response_coverage?: string | null
+          messages_doc_link?: string | null
+          objection_handling_script?: string | null
+          payment_method?: string | null
+          preferred_booking_method?: string | null
+          preframe_messages?: string | null
+          pricing_process_current?: string | null
+          qualifying_script?: string | null
+          reminder_messages?: string | null
+          reminders_approved?: boolean | null
+          scripts_approved?: boolean | null
+          scripts_doc_link?: string | null
+          show_rate_target?: string | null
+          tracking_confirmed?: boolean | null
+          tracking_link?: string | null
+          tracking_method?: string | null
+          tracking_notes_template?: string | null
+          updated_at?: string | null
+          user_id?: string
+          uses_deposit?: boolean | null
+        }
+        Relationships: []
+      }
+      portal_dwy_call_1: {
+        Row: {
+          access_checklist_confirmed: boolean | null
+          access_checklist_items: string | null
+          access_checklist_link: string | null
+          access_notes: string | null
+          access_status: string | null
+          approval_gate_passed: boolean | null
+          approval_method: string | null
+          approved_build_plan_link: string | null
+          attendees_confirmed: boolean | null
+          audit_reviewed: boolean | null
+          backup_comm_channel: string | null
+          biggest_bottleneck: string | null
+          blockers_note: string | null
+          build_order: string | null
+          build_plan_approved: boolean | null
+          call_datetime: string | null
+          call_link: string | null
+          call_notes_link: string | null
+          call_scheduled: boolean | null
+          constraints: string | null
+          created_at: string | null
+          deadlines: string | null
+          good_lead_definition: string | null
+          good_lead_definition_locked: boolean | null
+          id: string
+          next_steps_48h_link: string | null
+          next_steps_confirmed: boolean | null
+          owners: string | null
+          primary_comm_channel: string | null
+          primary_offer_confirmed: boolean | null
+          primary_offer_name: string | null
+          priorities: string | null
+          recording_link: string | null
+          response_expectations_confirmed: boolean | null
+          service_area_confirmed: boolean | null
+          service_area_details: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_checklist_confirmed?: boolean | null
+          access_checklist_items?: string | null
+          access_checklist_link?: string | null
+          access_notes?: string | null
+          access_status?: string | null
+          approval_gate_passed?: boolean | null
+          approval_method?: string | null
+          approved_build_plan_link?: string | null
+          attendees_confirmed?: boolean | null
+          audit_reviewed?: boolean | null
+          backup_comm_channel?: string | null
+          biggest_bottleneck?: string | null
+          blockers_note?: string | null
+          build_order?: string | null
+          build_plan_approved?: boolean | null
+          call_datetime?: string | null
+          call_link?: string | null
+          call_notes_link?: string | null
+          call_scheduled?: boolean | null
+          constraints?: string | null
+          created_at?: string | null
+          deadlines?: string | null
+          good_lead_definition?: string | null
+          good_lead_definition_locked?: boolean | null
+          id?: string
+          next_steps_48h_link?: string | null
+          next_steps_confirmed?: boolean | null
+          owners?: string | null
+          primary_comm_channel?: string | null
+          primary_offer_confirmed?: boolean | null
+          primary_offer_name?: string | null
+          priorities?: string | null
+          recording_link?: string | null
+          response_expectations_confirmed?: boolean | null
+          service_area_confirmed?: boolean | null
+          service_area_details?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_checklist_confirmed?: boolean | null
+          access_checklist_items?: string | null
+          access_checklist_link?: string | null
+          access_notes?: string | null
+          access_status?: string | null
+          approval_gate_passed?: boolean | null
+          approval_method?: string | null
+          approved_build_plan_link?: string | null
+          attendees_confirmed?: boolean | null
+          audit_reviewed?: boolean | null
+          backup_comm_channel?: string | null
+          biggest_bottleneck?: string | null
+          blockers_note?: string | null
+          build_order?: string | null
+          build_plan_approved?: boolean | null
+          call_datetime?: string | null
+          call_link?: string | null
+          call_notes_link?: string | null
+          call_scheduled?: boolean | null
+          constraints?: string | null
+          created_at?: string | null
+          deadlines?: string | null
+          good_lead_definition?: string | null
+          good_lead_definition_locked?: boolean | null
+          id?: string
+          next_steps_48h_link?: string | null
+          next_steps_confirmed?: boolean | null
+          owners?: string | null
+          primary_comm_channel?: string | null
+          primary_offer_confirmed?: boolean | null
+          primary_offer_name?: string | null
+          priorities?: string | null
+          recording_link?: string | null
+          response_expectations_confirmed?: boolean | null
+          service_area_confirmed?: boolean | null
+          service_area_details?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      portal_dwy_call_2: {
+        Row: {
+          approval_gate_passed: boolean | null
+          approval_method: string | null
+          call_confirmed: boolean | null
+          call_datetime: string | null
+          call_link: string | null
+          capacity_notes: string | null
+          client_feedback_summary: string | null
+          constraints_confirmed: boolean | null
+          created_at: string | null
+          examples_link: string | null
+          great_leads_examples: string | null
+          id: string
+          iteration_plan_approved: boolean | null
+          iteration_plan_summary: string | null
+          iteration_priorities: string | null
+          metrics_snapshot: string | null
+          no_show_examples: string | null
+          offer_pricing_updates: string | null
+          operational_updates_noted: boolean | null
+          optimization_actions: string | null
+          period_end: string | null
+          period_start: string | null
+          plan_doc_link: string | null
+          primary_constraint: string | null
+          reporting_cadence: string | null
+          reporting_cadence_confirmed: boolean | null
+          reporting_confirmed: boolean | null
+          review_doc_link: string | null
+          staff_hours_notes: string | null
+          system_review_summary: string | null
+          test_priorities_confirmed: boolean | null
+          tests_queue: string | null
+          updated_at: string | null
+          user_id: string
+          weak_leads_examples: string | null
+          weekly_checkin_notes: string | null
+          what_is_not_working: string | null
+          what_is_working: string | null
+        }
+        Insert: {
+          approval_gate_passed?: boolean | null
+          approval_method?: string | null
+          call_confirmed?: boolean | null
+          call_datetime?: string | null
+          call_link?: string | null
+          capacity_notes?: string | null
+          client_feedback_summary?: string | null
+          constraints_confirmed?: boolean | null
+          created_at?: string | null
+          examples_link?: string | null
+          great_leads_examples?: string | null
+          id?: string
+          iteration_plan_approved?: boolean | null
+          iteration_plan_summary?: string | null
+          iteration_priorities?: string | null
+          metrics_snapshot?: string | null
+          no_show_examples?: string | null
+          offer_pricing_updates?: string | null
+          operational_updates_noted?: boolean | null
+          optimization_actions?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          plan_doc_link?: string | null
+          primary_constraint?: string | null
+          reporting_cadence?: string | null
+          reporting_cadence_confirmed?: boolean | null
+          reporting_confirmed?: boolean | null
+          review_doc_link?: string | null
+          staff_hours_notes?: string | null
+          system_review_summary?: string | null
+          test_priorities_confirmed?: boolean | null
+          tests_queue?: string | null
+          updated_at?: string | null
+          user_id: string
+          weak_leads_examples?: string | null
+          weekly_checkin_notes?: string | null
+          what_is_not_working?: string | null
+          what_is_working?: string | null
+        }
+        Update: {
+          approval_gate_passed?: boolean | null
+          approval_method?: string | null
+          call_confirmed?: boolean | null
+          call_datetime?: string | null
+          call_link?: string | null
+          capacity_notes?: string | null
+          client_feedback_summary?: string | null
+          constraints_confirmed?: boolean | null
+          created_at?: string | null
+          examples_link?: string | null
+          great_leads_examples?: string | null
+          id?: string
+          iteration_plan_approved?: boolean | null
+          iteration_plan_summary?: string | null
+          iteration_priorities?: string | null
+          metrics_snapshot?: string | null
+          no_show_examples?: string | null
+          offer_pricing_updates?: string | null
+          operational_updates_noted?: boolean | null
+          optimization_actions?: string | null
+          period_end?: string | null
+          period_start?: string | null
+          plan_doc_link?: string | null
+          primary_constraint?: string | null
+          reporting_cadence?: string | null
+          reporting_cadence_confirmed?: boolean | null
+          reporting_confirmed?: boolean | null
+          review_doc_link?: string | null
+          staff_hours_notes?: string | null
+          system_review_summary?: string | null
+          test_priorities_confirmed?: boolean | null
+          tests_queue?: string | null
+          updated_at?: string | null
+          user_id?: string
+          weak_leads_examples?: string | null
+          weekly_checkin_notes?: string | null
+          what_is_not_working?: string | null
+          what_is_working?: string | null
+        }
+        Relationships: []
+      }
+      portal_funnel_audit: {
+        Row: {
+          ad_account_access_status: string | null
+          ads_data_received: boolean | null
+          ads_summary: string | null
+          audit_complete: boolean | null
+          audit_doc_link: string | null
+          audit_scorecard: string | null
+          blockers_note: string | null
+          booking_link: string | null
+          constraints: string | null
+          conversations_received: boolean | null
+          created_at: string | null
+          creatives_received: boolean | null
+          creatives_upload_link: string | null
+          decision_notes: string | null
+          entry_points_received: boolean | null
+          fix_plan_approved: boolean | null
+          fix_plan_link: string | null
+          form_link: string | null
+          good_lead_definition: string | null
+          good_lead_definition_confirmed: boolean | null
+          id: string
+          instagram_url: string | null
+          key_funnel_decision: string | null
+          key_funnel_decision_confirmed: boolean | null
+          lead_conversations_upload_link: string | null
+          leak_list: string | null
+          offer_details: string | null
+          offer_details_received: boolean | null
+          priority_fix_plan: string | null
+          quick_wins: string | null
+          scorecard_approved: boolean | null
+          scorecard_link: string | null
+          updated_at: string | null
+          user_id: string
+          website_url: string | null
+          whatsapp_link: string | null
+        }
+        Insert: {
+          ad_account_access_status?: string | null
+          ads_data_received?: boolean | null
+          ads_summary?: string | null
+          audit_complete?: boolean | null
+          audit_doc_link?: string | null
+          audit_scorecard?: string | null
+          blockers_note?: string | null
+          booking_link?: string | null
+          constraints?: string | null
+          conversations_received?: boolean | null
+          created_at?: string | null
+          creatives_received?: boolean | null
+          creatives_upload_link?: string | null
+          decision_notes?: string | null
+          entry_points_received?: boolean | null
+          fix_plan_approved?: boolean | null
+          fix_plan_link?: string | null
+          form_link?: string | null
+          good_lead_definition?: string | null
+          good_lead_definition_confirmed?: boolean | null
+          id?: string
+          instagram_url?: string | null
+          key_funnel_decision?: string | null
+          key_funnel_decision_confirmed?: boolean | null
+          lead_conversations_upload_link?: string | null
+          leak_list?: string | null
+          offer_details?: string | null
+          offer_details_received?: boolean | null
+          priority_fix_plan?: string | null
+          quick_wins?: string | null
+          scorecard_approved?: boolean | null
+          scorecard_link?: string | null
+          updated_at?: string | null
+          user_id: string
+          website_url?: string | null
+          whatsapp_link?: string | null
+        }
+        Update: {
+          ad_account_access_status?: string | null
+          ads_data_received?: boolean | null
+          ads_summary?: string | null
+          audit_complete?: boolean | null
+          audit_doc_link?: string | null
+          audit_scorecard?: string | null
+          blockers_note?: string | null
+          booking_link?: string | null
+          constraints?: string | null
+          conversations_received?: boolean | null
+          created_at?: string | null
+          creatives_received?: boolean | null
+          creatives_upload_link?: string | null
+          decision_notes?: string | null
+          entry_points_received?: boolean | null
+          fix_plan_approved?: boolean | null
+          fix_plan_link?: string | null
+          form_link?: string | null
+          good_lead_definition?: string | null
+          good_lead_definition_confirmed?: boolean | null
+          id?: string
+          instagram_url?: string | null
+          key_funnel_decision?: string | null
+          key_funnel_decision_confirmed?: boolean | null
+          lead_conversations_upload_link?: string | null
+          leak_list?: string | null
+          offer_details?: string | null
+          offer_details_received?: boolean | null
+          priority_fix_plan?: string | null
+          quick_wins?: string | null
+          scorecard_approved?: boolean | null
+          scorecard_link?: string | null
+          updated_at?: string | null
+          user_id?: string
+          website_url?: string | null
+          whatsapp_link?: string | null
+        }
+        Relationships: []
+      }
+      portal_get_started: {
+        Row: {
+          access_guide_link: string | null
+          assets_folder_link: string | null
+          assets_uploaded: boolean | null
+          blocker_note: string | null
+          booking_link: string | null
+          created_at: string | null
+          id: string
+          intake_link: string | null
+          intake_submitted: boolean | null
+          meta_access_granted: boolean | null
+          offer_confirmed: boolean | null
+          proof_folder_link: string | null
+          proof_uploaded: boolean | null
+          service_area_confirmed: boolean | null
+          updated_at: string | null
+          user_id: string
+          whatsapp_saved: boolean | null
+        }
+        Insert: {
+          access_guide_link?: string | null
+          assets_folder_link?: string | null
+          assets_uploaded?: boolean | null
+          blocker_note?: string | null
+          booking_link?: string | null
+          created_at?: string | null
+          id?: string
+          intake_link?: string | null
+          intake_submitted?: boolean | null
+          meta_access_granted?: boolean | null
+          offer_confirmed?: boolean | null
+          proof_folder_link?: string | null
+          proof_uploaded?: boolean | null
+          service_area_confirmed?: boolean | null
+          updated_at?: string | null
+          user_id: string
+          whatsapp_saved?: boolean | null
+        }
+        Update: {
+          access_guide_link?: string | null
+          assets_folder_link?: string | null
+          assets_uploaded?: boolean | null
+          blocker_note?: string | null
+          booking_link?: string | null
+          created_at?: string | null
+          id?: string
+          intake_link?: string | null
+          intake_submitted?: boolean | null
+          meta_access_granted?: boolean | null
+          offer_confirmed?: boolean | null
+          proof_folder_link?: string | null
+          proof_uploaded?: boolean | null
+          service_area_confirmed?: boolean | null
+          updated_at?: string | null
+          user_id?: string
+          whatsapp_saved?: boolean | null
+        }
+        Relationships: []
+      }
+      portal_nurture_system: {
+        Row: {
+          approval_gate_passed: boolean | null
+          assets_folder_link: string | null
+          best_selling_service: string | null
+          blockers_note: string | null
+          cadence_confirmed: boolean | null
+          channel_instagram_dm: boolean | null
+          channel_whatsapp: boolean | null
+          constraints: string | null
+          created_at: string | null
+          crm_used: boolean | null
+          faq_doc_link: string | null
+          faq_responses_pack: string | null
+          faqs_raw: string | null
+          follow_up_cadence: string | null
+          handoff_rules_to_booking: string | null
+          id: string
+          ideal_customer: string | null
+          lead_gate_questions: string | null
+          lead_gates_approved: boolean | null
+          nurture_script_pack: string | null
+          objections_raw: string | null
+          response_windows: string | null
+          scripts_approved: boolean | null
+          scripts_doc_link: string | null
+          starting_price: string | null
+          tools_access_confirmed: boolean | null
+          tools_access_notes: string | null
+          tracking_confirmed: boolean | null
+          tracking_link: string | null
+          tracking_method: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approval_gate_passed?: boolean | null
+          assets_folder_link?: string | null
+          best_selling_service?: string | null
+          blockers_note?: string | null
+          cadence_confirmed?: boolean | null
+          channel_instagram_dm?: boolean | null
+          channel_whatsapp?: boolean | null
+          constraints?: string | null
+          created_at?: string | null
+          crm_used?: boolean | null
+          faq_doc_link?: string | null
+          faq_responses_pack?: string | null
+          faqs_raw?: string | null
+          follow_up_cadence?: string | null
+          handoff_rules_to_booking?: string | null
+          id?: string
+          ideal_customer?: string | null
+          lead_gate_questions?: string | null
+          lead_gates_approved?: boolean | null
+          nurture_script_pack?: string | null
+          objections_raw?: string | null
+          response_windows?: string | null
+          scripts_approved?: boolean | null
+          scripts_doc_link?: string | null
+          starting_price?: string | null
+          tools_access_confirmed?: boolean | null
+          tools_access_notes?: string | null
+          tracking_confirmed?: boolean | null
+          tracking_link?: string | null
+          tracking_method?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approval_gate_passed?: boolean | null
+          assets_folder_link?: string | null
+          best_selling_service?: string | null
+          blockers_note?: string | null
+          cadence_confirmed?: boolean | null
+          channel_instagram_dm?: boolean | null
+          channel_whatsapp?: boolean | null
+          constraints?: string | null
+          created_at?: string | null
+          crm_used?: boolean | null
+          faq_doc_link?: string | null
+          faq_responses_pack?: string | null
+          faqs_raw?: string | null
+          follow_up_cadence?: string | null
+          handoff_rules_to_booking?: string | null
+          id?: string
+          ideal_customer?: string | null
+          lead_gate_questions?: string | null
+          lead_gates_approved?: boolean | null
+          nurture_script_pack?: string | null
+          objections_raw?: string | null
+          response_windows?: string | null
+          scripts_approved?: boolean | null
+          scripts_doc_link?: string | null
+          starting_price?: string | null
+          tools_access_confirmed?: boolean | null
+          tools_access_notes?: string | null
+          tracking_confirmed?: boolean | null
+          tracking_link?: string | null
+          tracking_method?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       proof_cards: {
         Row: {
           asset_id: string | null
@@ -1149,7 +2085,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
