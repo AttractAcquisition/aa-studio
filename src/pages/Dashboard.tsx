@@ -16,16 +16,19 @@ import {
   ArrowRight,
   TrendingUp,
   Loader2,
-  BarChart3
+  BarChart3,
+  LogOut
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useGrowthScoreboard } from "@/hooks/useGrowthMetrics";
 import { useBundles } from "@/hooks/useBundles";
 import { AddProofModal } from "@/components/modals/AddProofModal";
 import { UpdateMetricsModal } from "@/components/modals/UpdateMetricsModal";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
   const { data: scoreboard, isLoading: isLoadingScoreboard } = useGrowthScoreboard();
   const { bundles, isLoading: isLoadingBundles } = useBundles(5);
   const [addProofOpen, setAddProofOpen] = useState(false);
@@ -125,6 +128,10 @@ export default function Dashboard() {
                 <ArrowRight className="w-4 h-4" />
               </Button>
             </Link>
+            <Button variant="ghost" size="sm" onClick={signOut} className="text-muted-foreground hover:text-foreground">
+              <LogOut className="w-4 h-4 mr-2" />
+              Log out
+            </Button>
           </div>
         </div>
 
