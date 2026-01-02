@@ -98,7 +98,7 @@ export default function Dashboard() {
     title: bundle.title || "Untitled",
     series: bundle.series || "General",
     date: new Date(bundle.created_at).toLocaleDateString(),
-    status: bundle.status as "draft" | "ready" | "published",
+status: (bundle.status === "scheduled" ? "ready" : bundle.status) as "draft" | "ready" | "published",
     thumbnail: bundle.design_image_urls?.bold_text_card || null,
   }));
 
