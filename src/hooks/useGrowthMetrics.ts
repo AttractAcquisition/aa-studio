@@ -164,8 +164,9 @@ export function useGrowthMetricMutation() {
       return metric as GrowthMetric;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["growth_metrics"] });
-      queryClient.invalidateQueries({ queryKey: ["growth_scoreboard"] });
+      // Invalidate all growth-related queries to refetch data
+      queryClient.invalidateQueries({ queryKey: ["growth_metrics", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["growth_scoreboard", user?.id] });
     },
   });
 }
