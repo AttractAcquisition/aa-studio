@@ -101,25 +101,21 @@ export function useGrowthScoreboard() {
       // Sum last 7 days for other metrics
       const last7Days = metrics.filter((m) => m.date >= sevenDaysAgoStr);
 
-      const profileVisits7Day = last7Days.reduce(
-        (sum, m) => sum + (m.profile_visits || 0),
-        0
-      ) || null;
+      const profileVisits7Day = last7Days.length > 0 
+        ? last7Days.reduce((sum, m) => sum + (m.profile_visits || 0), 0)
+        : null;
 
-      const linkClicks7Day = last7Days.reduce(
-        (sum, m) => sum + (m.link_clicks || 0),
-        0
-      ) || null;
+      const linkClicks7Day = last7Days.length > 0
+        ? last7Days.reduce((sum, m) => sum + (m.link_clicks || 0), 0)
+        : null;
 
-      const inboundDms7Day = last7Days.reduce(
-        (sum, m) => sum + (m.inbound_dms || 0),
-        0
-      ) || null;
+      const inboundDms7Day = last7Days.length > 0
+        ? last7Days.reduce((sum, m) => sum + (m.inbound_dms || 0), 0)
+        : null;
 
-      const bookedCalls7Day = last7Days.reduce(
-        (sum, m) => sum + (m.booked_calls || 0),
-        0
-      ) || null;
+      const bookedCalls7Day = last7Days.length > 0
+        ? last7Days.reduce((sum, m) => sum + (m.booked_calls || 0), 0)
+        : null;
 
       return {
         followers,
