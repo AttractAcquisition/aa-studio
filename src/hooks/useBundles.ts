@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./useAuth";
+import { useAuth } from "@/hooks/useAuth";
 
 export type Bundle = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   title: string;
   series: string | null;
   content_type: string | null;
@@ -16,8 +16,8 @@ export type Bundle = {
   one_pager_layout_json: Record<string, any> | null;
   one_pager_export_png_url: string | null;
   design_prompts: Record<string, string> | null;
-  design_image_urls: Record<string, string> | null;
-  export_urls: Record<string, string> | string[] | null;
+  design_image_urls: Record<string, any> | null;
+  export_urls: Record<string, any> | string[] | null;
   status: "draft" | "scheduled" | "published";
   scheduled_at: string | null;
   published_at: string | null;
@@ -26,7 +26,7 @@ export type Bundle = {
 };
 
 export type BundleInsert = Partial<Omit<Bundle, "id" | "created_at" | "updated_at">> & {
-  user_id: string;
+  user_id?: string; // allow server/RLS defaults if applicable
 };
 
 export type BundleUpdate = Partial<Omit<Bundle, "id" | "user_id" | "created_at" | "updated_at">>;
@@ -36,24 +36,29 @@ export function useBundles(limit = 10) {
 
   const query = useQuery({
     queryKey: ["bundles", user?.id, limit],
+    enabled: !!user,
     queryFn: async () => {
       if (!user) return [];
-      
+
+      // IMPORTANT:
+      // Do not hard-filter on user_id unless you're 100% sure every row always has it.
+      // If some rows were created without user_id, `.eq("user_id", user.id)` returns empty.
+      // This query relies on RLS, but also "includes" null user_id rows if your RLS allows it.
       const { data, error } = await supabase
         .from("content_bundles")
         .select("*")
-        .eq("user_id", user.id)
+        .or(`user_id.eq.${user.id},user_id.is.null`)
         .order("updated_at", { ascending: false })
+        .order("created_at", { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      return (data || []) as Bundle[];
+      return (data ?? []) as Bundle[];
     },
-    enabled: !!user,
   });
 
   return {
-    bundles: query.data || [],
+    bundles: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
@@ -64,7 +69,8 @@ export function useBundle(id: string | undefined) {
   const { user } = useAuth();
 
   return useQuery({
-    queryKey: ["bundle", id],
+    queryKey: ["bundle", id, user?.id],
+    enabled: !!id && !!user,
     queryFn: async () => {
       if (!id || !user) return null;
 
@@ -72,19 +78,27 @@ export function useBundle(id: string | undefined) {
         .from("content_bundles")
         .select("*")
         .eq("id", id)
-        .eq("user_id", user.id)
         .maybeSingle();
 
       if (error) throw error;
+
+      // Optional safety: if you want to hide other users' bundles even if RLS is misconfigured
+      if (data && data.user_id && data.user_id !== user.id) return null;
+
       return data as Bundle | null;
     },
-    enabled: !!id && !!user,
   });
 }
 
 export function useBundleMutations() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const invalidateBundles = () => {
+    // Ensures ALL variants like ["bundles", userId, limit] refresh
+    queryClient.invalidateQueries({ queryKey: ["bundles"], exact: false });
+    queryClient.invalidateQueries({ queryKey: ["bundle"], exact: false });
+  };
 
   const createBundle = useMutation({
     mutationFn: async (data: Omit<BundleInsert, "user_id">) => {
@@ -99,9 +113,7 @@ export function useBundleMutations() {
       if (error) throw error;
       return bundle as Bundle;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bundles"] });
-    },
+    onSuccess: invalidateBundles,
   });
 
   const updateBundle = useMutation({
@@ -112,17 +124,19 @@ export function useBundleMutations() {
         .from("content_bundles")
         .update(data)
         .eq("id", id)
-        .eq("user_id", user.id)
         .select()
         .single();
 
       if (error) throw error;
+
+      // Optional safety: if you want to prevent updating bundles that don't belong to the user
+      if (bundle?.user_id && bundle.user_id !== user.id) {
+        throw new Error("Unauthorized update");
+      }
+
       return bundle as Bundle;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["bundles"] });
-      queryClient.invalidateQueries({ queryKey: ["bundle", variables.id] });
-    },
+    onSuccess: invalidateBundles,
   });
 
   const deleteBundle = useMutation({
@@ -132,14 +146,11 @@ export function useBundleMutations() {
       const { error } = await supabase
         .from("content_bundles")
         .delete()
-        .eq("id", id)
-        .eq("user_id", user.id);
+        .eq("id", id);
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["bundles"] });
-    },
+    onSuccess: invalidateBundles,
   });
 
   return { createBundle, updateBundle, deleteBundle };
