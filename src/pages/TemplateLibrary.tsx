@@ -43,7 +43,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Filter, RefreshCw, Copy } from "lucide-react";
+import { Plus, Filter, RefreshCw } from "lucide-react";
 import { useTemplates } from "@/hooks/useTemplates";
 import { useToast } from "@/hooks/use-toast";
 import { getAssetPublicUrl } from "@/lib/supabase-helpers";
@@ -81,26 +81,24 @@ export default function TemplateLibrary() {
 
   // Filter templates based on selected categories and formats
   const filteredTemplates = templates.filter((template: any) => {
-    const categoryMatch = selectedCategories.length === 0 || 
+    const categoryMatch =
+      selectedCategories.length === 0 ||
       selectedCategories.includes(template.category?.toLowerCase() || "");
-    const formatMatch = selectedFormats.length === 0 || 
+    const formatMatch =
+      selectedFormats.length === 0 ||
       (template.formats || []).some((f: string) => selectedFormats.includes(f));
     return categoryMatch && formatMatch;
   });
 
   const toggleCategory = (category: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
+    setSelectedCategories((prev) =>
+      prev.includes(category) ? prev.filter((c) => c !== category) : [...prev, category]
     );
   };
 
   const toggleFormat = (format: string) => {
-    setSelectedFormats(prev => 
-      prev.includes(format) 
-        ? prev.filter(f => f !== format)
-        : [...prev, format]
+    setSelectedFormats((prev) =>
+      prev.includes(format) ? prev.filter((f) => f !== format) : [...prev, format]
     );
   };
 
@@ -139,24 +137,22 @@ export default function TemplateLibrary() {
     }
   };
 
+  // ✅ UPDATED: Prefer preview_asset_path PNG/JPG first, then fall back to system preview components
   const getTemplatePreview = (template: any) => {
-    // First check for system template preview component
-    if (templatePreviews[template.key]) {
-      return templatePreviews[template.key];
-    }
-    // Then check for preview_asset_path
+    // 1) Prefer preview_asset_path (PNG/JPG) if present
     if (template.preview_asset_path) {
-      const url = template.preview_asset_path.startsWith("http") 
-        ? template.preview_asset_path 
+      const url = template.preview_asset_path.startsWith("http")
+        ? template.preview_asset_path
         : getAssetPublicUrl(
             template.preview_asset_path.split("/")[0] || "aa-designs",
             template.preview_asset_path.split("/").slice(1).join("/") || template.preview_asset_path
           );
+
       return (
         <div className="aspect-[4/5] bg-secondary rounded-xl overflow-hidden">
-          <img 
-            src={url} 
-            alt={template.name} 
+          <img
+            src={url}
+            alt={template.name}
             className="w-full h-full object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = "none";
@@ -165,7 +161,13 @@ export default function TemplateLibrary() {
         </div>
       );
     }
-    // Fallback
+
+    // 2) Then check for system template preview component
+    if (templatePreviews[template.key]) {
+      return templatePreviews[template.key];
+    }
+
+    // 3) Fallback
     return (
       <div className="aspect-[4/5] bg-secondary rounded-xl flex items-center justify-center">
         <span className="text-muted-foreground text-sm">{template.name}</span>
@@ -224,7 +226,8 @@ export default function TemplateLibrary() {
               Design <span className="aa-gradient-text">Templates</span>
             </h1>
             <p className="aa-body mt-2 max-w-lg">
-              {templates.length} brand-locked templates for consistent, on-brand content. Edit fields, not layouts.
+              {templates.length} brand-locked templates for consistent, on-brand content. Edit
+              fields, not layouts.
             </p>
           </div>
           <div className="flex gap-3">
@@ -241,7 +244,9 @@ export default function TemplateLibrary() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Categories</div>
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
+                  Categories
+                </div>
                 {categoryOptions.map((category) => (
                   <DropdownMenuCheckboxItem
                     key={category}
@@ -251,7 +256,9 @@ export default function TemplateLibrary() {
                     {category.charAt(0).toUpperCase() + category.slice(1)}
                   </DropdownMenuCheckboxItem>
                 ))}
-                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">Formats</div>
+                <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground mt-2">
+                  Formats
+                </div>
                 {formatOptions.map((format) => (
                   <DropdownMenuCheckboxItem
                     key={format}
@@ -278,18 +285,25 @@ export default function TemplateLibrary() {
         ) : filteredTemplates.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-muted-foreground">No templates match your filters.</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="mt-4"
-              onClick={() => { setSelectedCategories([]); setSelectedFormats([]); }}
+              onClick={() => {
+                setSelectedCategories([]);
+                setSelectedFormats([]);
+              }}
             >
               Clear Filters
             </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTemplates.map((template: any, index: number) => (
-              <div key={template.id} className="animate-fade-in" style={{ animationDelay: `${index * 100}ms` }}>
+            {filteredTemplates.map((template: any, index: number) => (
+              <div
+                key={template.id}
+                className="animate-fade-in"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
                 <TemplateCard
                   type={template.category?.toUpperCase() || template.key.toUpperCase()}
                   title={template.name}
@@ -301,7 +315,8 @@ export default function TemplateLibrary() {
                     if (template.is_system) {
                       toast({
                         title: "System template",
-                        description: "System templates cannot be edited. Use 'Duplicate' to create an editable copy.",
+                        description:
+                          "System templates cannot be edited. Use 'Duplicate' to create an editable copy.",
                         variant: "destructive",
                       });
                     } else {
@@ -378,8 +393,8 @@ export default function TemplateLibrary() {
             </div>
             <div>
               <Label className="text-muted-foreground mb-2 block">Category</Label>
-              <Select 
-                value={newTemplate.category} 
+              <Select
+                value={newTemplate.category}
                 onValueChange={(v) => setNewTemplate({ ...newTemplate, category: v })}
               >
                 <SelectTrigger>
@@ -416,8 +431,8 @@ export default function TemplateLibrary() {
                       setNewTemplate({
                         ...newTemplate,
                         formats: newTemplate.formats.includes(format)
-                          ? newTemplate.formats.filter(f => f !== format)
-                          : [...newTemplate.formats, format]
+                          ? newTemplate.formats.filter((f) => f !== format)
+                          : [...newTemplate.formats, format],
                       });
                     }}
                   >
@@ -464,7 +479,7 @@ export default function TemplateLibrary() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmDeleteTemplate}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
