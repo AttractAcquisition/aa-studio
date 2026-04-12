@@ -144,7 +144,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
 
     try {
       const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-onepager-layout`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-onepager-layout`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -537,7 +537,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
 
       try {
         const response = await fetch(
-          `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-design-prompt`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-design-prompt`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -608,7 +608,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
 
       try {
         const response = await fetch(
-          `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-design-image`,
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-design-image`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

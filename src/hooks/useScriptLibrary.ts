@@ -311,7 +311,7 @@ export function useScriptLibrary() {
 
       // Call the edge function to generate TTS
       const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-tts`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-tts`,
         {
           method: 'POST',
           headers: {

@@ -205,7 +205,7 @@ export function useVideoGenerator() {
       
       // Use fetch directly for GET with query params
       const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/video-render-status?render_id=${renderId}`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/video-render-status?render_id=${renderId}`,
         {
           headers: {
             "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,

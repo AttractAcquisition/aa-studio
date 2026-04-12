@@ -9,7 +9,8 @@ import type {
 } from "@/types/content-factory";
 
 const CONTENT_FACTORY_WEBHOOK =
-  import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL || "/api/content-factory";
+  import.meta.env.VITE_CONTENT_FACTORY_WEBHOOK_URL ||
+  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/content-factory`;
 
 /**
  * Build authorization headers for API requests

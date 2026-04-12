@@ -91,7 +91,7 @@ export function ScriptModal({
     setIsGenerating(true);
     try {
       const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-script`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-script`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

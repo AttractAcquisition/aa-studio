@@ -92,7 +92,7 @@ export default function OnePagers() {
       }
 
       const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-onepager-layout`,
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-onepager-layout`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

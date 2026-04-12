@@ -128,7 +128,7 @@ export default function TemplateEdit() {
     if (!previewAssetPath) return null;
     if (previewAssetPath.startsWith("http")) return previewAssetPath;
     // Construct Supabase storage URL
-    return `https://dwhmvzooerxejustfqpt.supabase.co/storage/v1/object/public/${previewAssetPath}`;
+    return `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/${previewAssetPath}`;
   };
 
   if (loading) {
