@@ -1,0 +1,16 @@
+{
+  "short_name": "AA Studio",
+  "name": "AA Studio",
+  "icons": [
+    {
+      "src": "aa-studio-app-icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0B0F19",
+  "theme_color": "#6A00F4"
+}
