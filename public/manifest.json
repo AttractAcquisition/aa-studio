@@ -1,6 +1,6 @@
 {
   "short_name": "AA Studio",
-  "name": "AA Studio Codespace",
+  "name": "AA Studio",
   "icons": [
     {
       "src": "aa-studio-app-icon.png",
@@ -11,6 +11,6 @@
   ],
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000"
+  "background_color": "#0B0F19",
+  "theme_color": "#6A00F4"
 }

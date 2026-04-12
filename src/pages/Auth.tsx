@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
-import { Mail, Lock, ArrowRight, Sparkles } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Mail, Lock, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -13,40 +13,18 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn } = useAuth();
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        toast({ title: "Welcome back!", description: "You've been signed in." });
-        navigate("/");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-          },
-        });
-        if (error) throw error;
-        toast({
-          title: "Account created!",
-          description: "Check your email to confirm your account, or sign in if email confirmation is disabled.",
-        });
-      }
+      await signIn(email, password);
+      toast.success(isLogin ? "Welcome back!" : "Demo account created!");
+      navigate("/");
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message || "Authentication failed");
     } finally {
       setLoading(false);
     }
@@ -55,7 +33,6 @@ export default function Auth() {
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* Logo */}
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent mx-auto flex items-center justify-center mb-6">
             <span className="text-2xl font-black text-primary-foreground">AA</span>
@@ -63,20 +40,15 @@ export default function Auth() {
           <h1 className="aa-headline-lg text-foreground">
             AA <span className="aa-gradient-text">Studio</span>
           </h1>
-          <p className="text-muted-foreground mt-2">
-            Your brand-page operating system
-          </p>
+          <p className="text-muted-foreground mt-2">Content production, no backend yet</p>
         </div>
 
-        {/* Auth Card */}
         <div className="aa-card">
           <div className="flex gap-2 p-1 bg-secondary rounded-xl mb-8">
             <button
               onClick={() => setIsLogin(true)}
               className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-                isLogin
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                isLogin ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               Sign In
@@ -84,12 +56,10 @@ export default function Auth() {
             <button
               onClick={() => setIsLogin(false)}
               className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
-                !isLogin
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
+                !isLogin ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              Sign Up
+              Demo Access
             </button>
           </div>
 
@@ -120,36 +90,20 @@ export default function Auth() {
                   placeholder="••••••••"
                   className="pl-12 h-14"
                   required
-                  minLength={6}
+                  minLength={4}
                 />
               </div>
             </div>
 
-            <Button
-              type="submit"
-              variant="gradient"
-              size="lg"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? (
-                "Loading..."
-              ) : (
-                <>
-                  {isLogin ? "Sign In" : "Create Account"}
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              )}
+            <Button type="submit" variant="gradient" size="lg" className="w-full" disabled={loading}>
+              {loading ? "Loading..." : <><ArrowRight className="w-4 h-4 mr-2" />{isLogin ? "Sign In" : "Enter Demo"}</>}
             </Button>
           </form>
 
           <p className="text-center text-sm text-muted-foreground mt-6">
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline font-medium"
-            >
-              {isLogin ? "Sign up" : "Sign in"}
+            {isLogin ? "Need demo access? " : "Already in? "}
+            <button onClick={() => setIsLogin(!isLogin)} className="text-primary hover:underline font-medium">
+              {isLogin ? "Switch to demo" : "Switch to sign in"}
             </button>
           </p>
         </div>
