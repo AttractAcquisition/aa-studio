@@ -1,31 +1,38 @@
+import { Users } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { PageHeader } from "@/components/console/PageHeader";
 import { CardGrid } from "@/components/console/CardGrid";
-import { StatRow } from "@/components/console/StatRow";
-import { clientConsoleCards } from "@/lib/studio-data";
-
-const stats = [
-  { label: "Focus", value: "Client", note: "Workspace + approvals" },
-  { label: "Modules", value: "5", note: "Requests to performance" },
-  { label: "Approval flow", value: "Built-in", note: "Review-ready" },
-  { label: "Goal", value: "Client clarity", note: "Less back-and-forth" },
-];
+import { useClients } from "@/hooks/useClients";
+import type { NavCard } from "@/lib/studio-data";
 
 export default function ClientConsole() {
+  const { clients, isLoading } = useClients();
+
+  const cards: NavCard[] = clients.map((client) => ({
+    title: client.business_name,
+    description: `${client.owner_name}${client.tier ? ` • ${client.tier}` : ""}${client.status ? ` • ${client.status}` : ""}`,
+    href: `/client/${client.id}`,
+    icon: Users,
+  }));
+
   return (
     <AppLayout>
       <div className="animate-fade-in max-w-6xl mx-auto">
         <PageHeader
           eyebrow="Client Console"
-          title="Client content"
+          title="Active clients"
           accent="workspace"
-          subtitle="A focused workspace for client content requests, approvals, shared assets, schedules, and performance.">
-        </PageHeader>
-
-        <StatRow stats={stats} />
+          subtitle="Open a client to access that client’s workspace."
+        />
 
         <div className="mt-10">
-          <CardGrid cards={clientConsoleCards} />
+          {isLoading ? (
+            <div className="text-sm text-muted-foreground">Loading active clients…</div>
+          ) : cards.length ? (
+            <CardGrid cards={cards} />
+          ) : (
+            <div className="aa-card text-sm text-muted-foreground">No active clients found.</div>
+          )}
         </div>
       </div>
     </AppLayout>

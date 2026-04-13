@@ -7,6 +7,7 @@ import { AuthGuard } from "@/components/AuthGuard";
 import Home from "./pages/Home";
 import AAConsole from "./pages/AAConsole";
 import ClientConsole from "./pages/ClientConsole";
+import ClientDashboard from "./pages/ClientDashboard";
 import Briefs from "./pages/Briefs";
 import Strategy from "./pages/Strategy";
 import Production from "./pages/Production";
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/" element={<AuthGuard><Home /></AuthGuard>} />
           <Route path="/aa-console" element={<AuthGuard><AAConsole /></AuthGuard>} />
           <Route path="/client-console" element={<AuthGuard><ClientConsole /></AuthGuard>} />
+          <Route path="/client/:clientId" element={<AuthGuard><ClientDashboard /></AuthGuard>} />
           <Route path="/briefs" element={<AuthGuard><Briefs /></AuthGuard>} />
           <Route path="/strategy" element={<AuthGuard><Strategy /></AuthGuard>} />
           <Route path="/production" element={<AuthGuard><Production /></AuthGuard>} />
