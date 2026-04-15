@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function ScriptLibrary() {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const [scripts, setScripts] = useState<any[]>([]);
   const [objective, setObjective] = useState("attraction");
   const [contentType, setContentType] = useState("post");
@@ -29,6 +30,13 @@ export default function ScriptLibrary() {
   }, [clientId]);
 
   const filtered = useMemo(() => scripts, [scripts]);
+
+  const archiveScript = async (scriptId: string) => {
+    if (!clientId) return;
+    await supabase.from("scripts").update({ status: "archived", updated_at: new Date().toISOString() }).eq("id", scriptId);
+    const { data: refreshed } = await supabase.from("scripts").select("*").eq("client_id", clientId).eq("status", "active").order("psychological_alignment_score", { ascending: false });
+    setScripts(refreshed ?? []);
+  };
 
   const generate = async () => {
     if (!clientId) return;
@@ -88,6 +96,11 @@ export default function ScriptLibrary() {
               </div>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{script.body_text}</p>
               <div className="text-sm text-foreground"><span className="text-muted-foreground">CTA:</span> {script.cta_text}</div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => navigate(`/clients/${clientId}/organic-studio?script=${script.id}`)}>Use in Organic Studio</Button>
+                <Button variant="secondary" onClick={() => navigate(`/clients/${clientId}/ad-briefs?script=${script.id}`)}>Use in Ad Brief</Button>
+                <Button variant="ghost" onClick={() => void archiveScript(script.id)}>Archive</Button>
+              </div>
             </article>
           )) : <div className="text-sm text-muted-foreground">No scripts yet.</div>}
         </div>

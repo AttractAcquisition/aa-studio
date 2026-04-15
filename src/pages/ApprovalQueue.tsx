@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function ApprovalQueue() {
   const { clientId } = useParams();
+  const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -35,8 +37,55 @@ export default function ApprovalQueue() {
     }
   };
 
-  const setStatus = async (itemId: string, status: string) => {
-    await supabase.from("approval_queue").update({ status, updated_at: new Date().toISOString() }).eq("id", itemId);
+  const setStatus = async (item: any, status: string) => {
+    const updatePayload: Record<string, any> = { status, updated_at: new Date().toISOString() };
+    if (status === 'approved') {
+      updatePayload.approved_at = new Date().toISOString();
+      updatePayload.approved_by = user?.id ?? null;
+    }
+    await supabase.from("approval_queue").update(updatePayload).eq("id", item.id);
+
+    if (item.content_type === 'organic_post') {
+      if (status === 'approved') {
+        await supabase.from("organic_posts").update({ status: 'approved', updated_at: new Date().toISOString() }).eq("id", item.content_id);
+        const { data: post } = await supabase.from("organic_posts").select("*").eq("id", item.content_id).maybeSingle();
+        if (post) {
+          const { data: existing } = await supabase.from("content_calendar_entries").select("id").eq("content_type", 'organic_post').eq("content_id", item.content_id).maybeSingle();
+          if (!existing) {
+            await supabase.from("content_calendar_entries").insert({
+              client_id: item.client_id,
+              cycle_id: item.cycle_id,
+              content_type: 'organic_post',
+              content_id: item.content_id,
+              funnel_layer: post.funnel_layer,
+              format: post.content_format,
+              publish_status: 'scheduled',
+              platform: 'instagram',
+            });
+          }
+        }
+      } else if (status === 'revision_requested') {
+        await supabase.from("organic_posts").update({ status: 'draft', updated_at: new Date().toISOString() }).eq("id", item.content_id);
+      } else if (status === 'rejected') {
+        await supabase.from("organic_posts").update({ status: 'rejected', updated_at: new Date().toISOString() }).eq("id", item.content_id);
+      }
+    }
+
+    if (item.content_type === 'ad_brief') {
+      await supabase.from("ad_creative_briefs").update({ status: status === 'approved' ? 'approved' : status === 'revision_requested' ? 'draft' : 'rejected', updated_at: new Date().toISOString() }).eq("id", item.content_id);
+    }
+
+    if (item.content_type === 'profile_build') {
+      await supabase.from("profile_builds").update({ status: status === 'approved' ? 'approved' : 'draft', updated_at: new Date().toISOString() }).eq("id", item.content_id);
+    }
+
+    if (item.content_type === 'positioning_doc') {
+      await supabase.from("positioning_documents").update({ status: status === 'approved' ? 'approved' : status === 'revision_requested' ? 'draft' : 'archived', updated_at: new Date().toISOString() }).eq("id", item.content_id);
+      if (status === 'approved') {
+        await supabase.functions.invoke("assemble-client-context", { body: { client_id: item.client_id } });
+      }
+    }
+
     await load();
   };
 
@@ -66,9 +115,9 @@ export default function ApprovalQueue() {
             <pre className="overflow-auto rounded-xl bg-muted p-4 text-xs text-muted-foreground">{JSON.stringify(item, null, 2)}</pre>
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => runChecks(item)} disabled={loading}>{loading ? "Checking…" : "Run checks"}</Button>
-              <Button variant="secondary" onClick={() => setStatus(item.id, 'approved')}>Approve</Button>
-              <Button variant="secondary" onClick={() => setStatus(item.id, 'revision_requested')}>Request revision</Button>
-              <Button variant="destructive" onClick={() => setStatus(item.id, 'rejected')}>Reject</Button>
+              <Button variant="secondary" onClick={() => void setStatus(item, 'approved')}>Approve</Button>
+              <Button variant="secondary" onClick={() => void setStatus(item, 'revision_requested')}>Request revision</Button>
+              <Button variant="destructive" onClick={() => void setStatus(item, 'rejected')}>Reject</Button>
             </div>
           </article>
         )) : <div className="aa-card text-sm text-muted-foreground">No approval queue items.</div>}

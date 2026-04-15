@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function ProfileBuilder() {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const [proofAssets, setProofAssets] = useState<any[]>([]);
   const [selectedProofs, setSelectedProofs] = useState<string[]>([]);
   const [objective, setObjective] = useState("whatsapp");
@@ -30,6 +31,32 @@ export default function ProfileBuilder() {
     };
     void load();
   }, [clientId]);
+
+  const sendToApproval = async () => {
+    if (!clientId || !profile) return;
+    const { data: queueEntry, error } = await supabase.from("approval_queue").insert({
+      client_id: clientId,
+      content_type: "profile_build",
+      content_id: profile.id,
+      reviewer_type: "internal",
+      status: "pending",
+    }).select("*").single();
+    if (error) throw error;
+    await supabase.from("profile_builds").update({ status: "in_review", approval_queue_id: queueEntry.id, updated_at: new Date().toISOString() }).eq("id", profile.id);
+    await supabase.functions.invoke("run-approval-checks", { body: { client_id: clientId, content_type: "profile_build", content_id: profile.id } });
+    const { data: refreshed } = await supabase.from("profile_builds").select("*").eq("client_id", clientId).order("version", { ascending: false }).limit(1);
+    setProfile(refreshed?.[0] ?? null);
+  };
+
+  const approve = async () => {
+    if (!clientId || !profile) return;
+    await supabase.from("profile_builds").update({ status: "approved", updated_at: new Date().toISOString() }).eq("id", profile.id);
+    if (profile.approval_queue_id) {
+      await supabase.from("approval_queue").update({ status: "approved", approved_at: new Date().toISOString() }).eq("id", profile.approval_queue_id);
+    }
+    const { data: refreshed } = await supabase.from("profile_builds").select("*").eq("client_id", clientId).order("version", { ascending: false }).limit(1);
+    setProfile(refreshed?.[0] ?? null);
+  };
 
   const generate = async () => {
     if (!clientId) return;
@@ -84,6 +111,11 @@ export default function ProfileBuilder() {
         <section className="aa-card space-y-4">
           <h2 className="text-lg font-semibold text-foreground">Latest profile build</h2>
           <pre className="overflow-auto rounded-xl bg-muted p-4 text-xs text-muted-foreground">{JSON.stringify(profile ?? {}, null, 2)}</pre>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => void sendToApproval()} disabled={!profile}>Send to Approval</Button>
+            <Button variant="secondary" onClick={() => void approve()} disabled={!profile}>Approve</Button>
+            <Button variant="ghost" onClick={() => navigate(`/clients/${clientId}/approval-queue`)}>Open Approval Queue</Button>
+          </div>
         </section>
       </div>
     </div>

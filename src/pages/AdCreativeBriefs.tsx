@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +12,7 @@ const objectives = ["attraction", "nurture", "conversion"] as const;
 
 export default function AdCreativeBriefs() {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const [activeObjective, setActiveObjective] = useState<(typeof objectives)[number]>("attraction");
   const [placement, setPlacement] = useState("all");
   const [variantCount, setVariantCount] = useState("2");
@@ -34,6 +35,22 @@ export default function AdCreativeBriefs() {
   useEffect(() => { void load(); }, [clientId]);
 
   const filtered = useMemo(() => briefs.filter((brief) => brief.campaign_objective === activeObjective), [briefs, activeObjective]);
+
+  const sendToApproval = async (brief: any) => {
+    if (!clientId) return;
+    const { data: queueEntry, error } = await supabase.from("approval_queue").insert({
+      client_id: clientId,
+      cycle_id: brief.cycle_id ?? null,
+      content_type: "ad_brief",
+      content_id: brief.id,
+      reviewer_type: "internal",
+      status: "pending",
+    }).select("*").single();
+    if (error) throw error;
+    await supabase.from("ad_creative_briefs").update({ status: "in_review", approval_queue_id: queueEntry.id, updated_at: new Date().toISOString() }).eq("id", brief.id);
+    const { data: refreshed } = await supabase.from("ad_creative_briefs").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+    setBriefs(refreshed ?? []);
+  };
 
   const generate = async () => {
     if (!clientId) return;
@@ -121,6 +138,10 @@ export default function AdCreativeBriefs() {
               <div className="text-sm text-foreground">{brief.primary_text}</div>
               <div className="text-sm text-muted-foreground">{brief.visual_direction}</div>
               <div className="text-sm text-foreground"><span className="text-muted-foreground">CTA:</span> {brief.cta_copy}</div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => void sendToApproval(brief)} disabled={brief.status === 'in_review' || brief.status === 'approved' || brief.status === 'exported'}>Send to Approval</Button>
+                <Button variant="ghost" onClick={() => navigate(`/clients/${clientId}/approval-queue`)}>Open Approval Queue</Button>
+              </div>
             </article>
           )) : <div className="text-sm text-muted-foreground">No briefs yet for this objective.</div>}
         </div>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +14,7 @@ type DocType = (typeof docTypes)[number];
 
 export default function PositioningStudio() {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DocType>("attraction");
   const [docs, setDocs] = useState<any[]>([]);
   const [proofAssets, setProofAssets] = useState<any[]>([]);
@@ -37,6 +38,30 @@ export default function PositioningStudio() {
 
   const activeDocs = useMemo(() => docs.filter((doc) => doc.doc_type === activeTab), [docs, activeTab]);
   const latestDoc = activeDocs[0];
+
+  const sendToApproval = async (doc: any) => {
+    if (!clientId) return;
+    const { data: queueEntry, error } = await supabase.from("approval_queue").insert({
+      client_id: clientId,
+      content_type: "positioning_doc",
+      content_id: doc.id,
+      reviewer_type: "internal",
+      status: "pending",
+    }).select("*").single();
+    if (error) throw error;
+    await supabase.from("positioning_documents").update({ status: "in_review", updated_at: new Date().toISOString() }).eq("id", doc.id);
+    await supabase.functions.invoke("run-approval-checks", { body: { client_id: clientId, content_type: "positioning_doc", content_id: doc.id } });
+    const { data: refreshed } = await supabase.from("positioning_documents").select("*").eq("client_id", clientId).order("version", { ascending: false });
+    setDocs(refreshed ?? []);
+  };
+
+  const approve = async (doc: any) => {
+    if (!clientId) return;
+    await supabase.from("positioning_documents").update({ status: "approved", approved_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", doc.id);
+    const { data: refreshed } = await supabase.from("positioning_documents").select("*").eq("client_id", clientId).order("version", { ascending: false });
+    setDocs(refreshed ?? []);
+    await supabase.functions.invoke("assemble-client-context", { body: { client_id: clientId } });
+  };
 
   const generate = async () => {
     if (!clientId) return;
@@ -121,6 +146,11 @@ export default function PositioningStudio() {
             <span className="text-xs text-muted-foreground">{latestDoc?.status || "none"}</span>
           </div>
           <pre className="overflow-auto rounded-xl bg-muted p-4 text-xs text-muted-foreground">{JSON.stringify(latestDoc?.content ?? {}, null, 2)}</pre>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => void sendToApproval(latestDoc)} disabled={!latestDoc}>Send to Approval</Button>
+            <Button variant="secondary" onClick={() => void approve(latestDoc)} disabled={!latestDoc}>Approve</Button>
+            <Button variant="ghost" onClick={() => navigate(`/clients/${clientId}/approval-queue`)}>Open Approval Queue</Button>
+          </div>
         </section>
       </div>
     </div>

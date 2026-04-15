@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export default function OrganicContentStudio() {
   const { clientId } = useParams();
+  const navigate = useNavigate();
   const [cycleId, setCycleId] = useState<string | null>(null);
   const [funnelLayer, setFunnelLayer] = useState("attraction");
   const [contentFormat, setContentFormat] = useState("feed_post");
@@ -34,6 +35,23 @@ export default function OrganicContentStudio() {
   }, [clientId]);
 
   const selectedProofRows = useMemo(() => proofAssets.filter((asset) => selectedAssets.includes(asset.id)), [proofAssets, selectedAssets]);
+
+  const sendToApproval = async (post: any) => {
+    if (!clientId || !cycleId) return;
+    const { data: queueEntry, error } = await supabase.from("approval_queue").insert({
+      client_id: clientId,
+      cycle_id: cycleId,
+      content_type: "organic_post",
+      content_id: post.id,
+      reviewer_type: "internal",
+      status: "pending",
+    }).select("*").single();
+    if (error) throw error;
+    await supabase.from("organic_posts").update({ status: "in_review", approval_queue_id: queueEntry.id, updated_at: new Date().toISOString() }).eq("id", post.id);
+    await supabase.functions.invoke("run-approval-checks", { body: { client_id: clientId, content_type: "organic_post", content_id: post.id } });
+    const { data: refreshed } = await supabase.from("organic_posts").select("*").eq("client_id", clientId).order("created_at", { ascending: false });
+    setPosts(refreshed ?? []);
+  };
 
   const generate = async () => {
     if (!clientId) return;
@@ -97,6 +115,11 @@ export default function OrganicContentStudio() {
               </div>
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">{post.caption}</p>
               <div className="text-xs text-muted-foreground">Brand score: {post.brand_voice_score ?? 0}</div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => void sendToApproval(post)} disabled={post.status === 'in_review' || post.status === 'approved'}>Send to Approval</Button>
+                <Button variant="ghost" onClick={() => navigate(`/clients/${clientId}/approval-queue`)}>Open Approval Queue</Button>
+                <Button variant="ghost" onClick={() => navigate(`/clients/${clientId}/content-calendar`)}>View in Calendar</Button>
+              </div>
             </article>
           )) : <div className="text-sm text-muted-foreground">No posts yet.</div>}
         </div>
