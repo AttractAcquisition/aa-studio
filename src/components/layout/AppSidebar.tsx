@@ -2,10 +2,11 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Home } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sparkles, Users } from "lucide-react";
 
 const topLinks = [
-  { title: "Home", url: "/", icon: Home },
+  { title: "AA Console", url: "/aa-console", icon: Sparkles },
+  { title: "Client Console", url: "/client-console", icon: Users },
 ];
 
 export function AppSidebar() {
