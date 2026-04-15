@@ -3,10 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type StudioClient = {
   id: string;
-  business_name: string;
-  owner_name: string | null;
-  tier: string | null;
+  name: string;
+  trade_sector: string;
+  city: string;
+  conversion_objective: string | null;
   status: string | null;
+  service_radius_km: number | null;
+  avg_job_value_zar: number | null;
 };
 
 export function useClients() {
@@ -15,9 +18,9 @@ export function useClients() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_name, owner_name, tier, status")
+        .select("id, name, trade_sector, city, conversion_objective, status, service_radius_km, avg_job_value_zar")
         .eq("status", "active")
-        .order("business_name", { ascending: true });
+        .order("name", { ascending: true });
 
       if (error) throw error;
       return (data ?? []) as StudioClient[];

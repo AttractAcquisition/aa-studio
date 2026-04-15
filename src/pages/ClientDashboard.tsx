@@ -10,7 +10,7 @@ export default function ClientDashboard() {
   return (
     <ConsolePage
       eyebrow="Client workspace"
-      title={client?.business_name || "Client workspace"}
+      title={client?.name || "Client workspace"}
       description="Blank client workspace shell. The full client-specific content system will live here."
     />
   );
