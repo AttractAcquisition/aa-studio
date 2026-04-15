@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
+import { CycleContextBar, FunnelLayerBadge, ApprovalStatusBadge } from "@/components/console/StudioPrimitives";
 import { supabase } from "@/integrations/supabase/client";
+
+const funnelLayers = ["attraction", "nurture", "conversion"];
 
 export default function ContentCalendar() {
   const { clientId } = useParams();
@@ -11,6 +14,18 @@ export default function ContentCalendar() {
   const [message, setMessage] = useState<string | null>(null);
 
   const activeCycle = useMemo(() => cycles.find((cycle) => cycle.status === 'active') ?? cycles[0] ?? null, [cycles]);
+
+  const dayCells = useMemo(() => {
+    if (!activeCycle?.start_date) return [];
+    const start = new Date(`${activeCycle.start_date}T00:00:00`);
+    return Array.from({ length: 14 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(date.getDate() + index);
+      const dayKey = date.toISOString().slice(0, 10);
+      const byLayer = Object.fromEntries(funnelLayers.map((layer) => [layer, entries.filter((entry) => entry.scheduled_date === dayKey && entry.funnel_layer === layer)]));
+      return { date, dayKey, byLayer };
+    });
+  }, [activeCycle, entries]);
 
   useEffect(() => {
     const load = async () => {
@@ -49,6 +64,11 @@ export default function ContentCalendar() {
 
       {message ? <div className="aa-card text-sm text-muted-foreground">{message}</div> : null}
 
+      <CycleContextBar
+        cycleLabel={activeCycle ? `Cycle ${activeCycle.cycle_number} · ${activeCycle.start_date} → ${activeCycle.end_date}` : "No active cycle"}
+        daysRemaining={activeCycle ? Math.max(0, Math.ceil((new Date(activeCycle.end_date).getTime() - Date.now()) / 86400000)) : null}
+      />
+
       <section className="aa-card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -59,19 +79,38 @@ export default function ContentCalendar() {
         </div>
       </section>
 
-      <section className="aa-card space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Calendar entries</h2>
-        <div className="grid gap-4 xl:grid-cols-2">
-          {entries.length ? entries.map((entry) => (
-            <article key={entry.id} className="rounded-xl border border-border bg-background p-4 space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <div className="font-medium text-foreground">{entry.content_type} · {entry.publish_status}</div>
-                <div className="text-xs text-muted-foreground">{entry.scheduled_date || 'unscheduled'}</div>
+      <section className="aa-card space-y-4 overflow-auto">
+        <h2 className="text-lg font-semibold text-foreground">14-day grid</h2>
+        {dayCells.length ? (
+          <div className="min-w-[1100px] space-y-3">
+            <div className="grid grid-cols-[140px_repeat(14,minmax(140px,1fr))] gap-2 text-xs text-muted-foreground">
+              <div />
+              {dayCells.map((cell) => <div key={cell.dayKey} className="rounded-lg border border-border p-2 text-center">{cell.date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</div>)}
+            </div>
+            {funnelLayers.map((layer) => (
+              <div key={layer} className="grid grid-cols-[140px_repeat(14,minmax(140px,1fr))] gap-2 items-stretch">
+                <div className="flex items-center rounded-xl border border-border bg-background px-3 text-sm font-medium text-foreground">
+                  <FunnelLayerBadge layer={layer} />
+                </div>
+                {dayCells.map((cell) => {
+                  const items = cell.byLayer[layer as keyof typeof cell.byLayer] as any[];
+                  return (
+                    <div key={`${layer}-${cell.dayKey}`} className="min-h-28 rounded-xl border border-border bg-background p-2 space-y-2">
+                      {items.length ? items.map((item) => (
+                        <div key={item.id} className="rounded-lg border border-border bg-muted/40 p-2 text-xs space-y-1">
+                          <div className="flex items-center justify-between gap-2"><ApprovalStatusBadge status={item.publish_status} /><span className="text-muted-foreground">{item.format || item.platform}</span></div>
+                          <div className="line-clamp-3 text-foreground">{item.content_type}</div>
+                        </div>
+                      )) : <div className="text-xs text-muted-foreground">Empty</div>}
+                    </div>
+                  );
+                })}
               </div>
-              <div className="text-sm text-muted-foreground">{entry.format || entry.platform || 'instagram'}</div>
-            </article>
-          )) : <div className="text-sm text-muted-foreground">No calendar entries yet.</div>}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-muted-foreground">No calendar entries yet.</div>
+        )}
       </section>
     </div>
   );
