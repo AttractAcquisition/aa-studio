@@ -30,6 +30,15 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        var redirect = sessionStorage.getItem('aa-studio-redirect');
+        if (redirect) {
+          sessionStorage.removeItem('aa-studio-redirect');
+          history.replaceState(null, '', redirect);
+        }
+      })();
+    </script>
     <script type="module" src="src/main.tsx"></script>
   </body>
 </html>

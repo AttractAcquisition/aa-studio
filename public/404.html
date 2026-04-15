@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AA Studio</title>
+    <script>
+      (function () {
+        var redirect = location.pathname + location.search + location.hash;
+        sessionStorage.setItem('aa-studio-redirect', redirect);
+        location.replace('/aa-studio/');
+      })();
+    </script>
+  </head>
+  <body></body>
+</html>
