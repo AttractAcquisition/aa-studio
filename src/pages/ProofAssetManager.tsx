@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 export default function ProofAssetManager() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const [assets, setAssets] = useState<any[]>([]);
   const [tagFilter, setTagFilter] = useState("All");
   const [sort, setSort] = useState("Newest");

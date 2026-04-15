@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 export default function ApprovalQueue() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const { user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [message, setMessage] = useState<string | null>(null);

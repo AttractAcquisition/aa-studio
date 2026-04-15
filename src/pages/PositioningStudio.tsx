@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 const docTypes = ["attraction", "nurture", "conversion"] as const;
 
 type DocType = (typeof docTypes)[number];
 
 export default function PositioningStudio() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DocType>("attraction");
   const [docs, setDocs] = useState<any[]>([]);

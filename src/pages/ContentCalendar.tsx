@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { CycleContextBar, FunnelLayerBadge, ApprovalStatusBadge } from "@/components/console/StudioPrimitives";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 const funnelLayers = ["attraction", "nurture", "conversion"];
 
 export default function ContentCalendar() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const [cycles, setCycles] = useState<any[]>([]);
   const [entries, setEntries] = useState<any[]>([]);
   const [message, setMessage] = useState<string | null>(null);

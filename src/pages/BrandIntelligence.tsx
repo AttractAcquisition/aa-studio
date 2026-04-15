@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 type BrandRow = {
   business_name: string | null;
@@ -51,7 +51,7 @@ const emptyForm = {
 };
 
 export default function BrandIntelligence() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const [form, setForm] = useState(emptyForm);
   const [row, setRow] = useState<BrandRow | null>(null);
   const [context, setContext] = useState<any>(null);

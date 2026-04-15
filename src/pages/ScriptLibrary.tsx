@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 export default function ScriptLibrary() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const navigate = useNavigate();
   const [scripts, setScripts] = useState<any[]>([]);
   const [objective, setObjective] = useState("attraction");

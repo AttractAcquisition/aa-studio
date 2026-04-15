@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 export default function ProfileBuilder() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const navigate = useNavigate();
   const [proofAssets, setProofAssets] = useState<any[]>([]);
   const [selectedProofs, setSelectedProofs] = useState<string[]>([]);

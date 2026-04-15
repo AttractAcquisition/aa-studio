@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { ConsolePage } from "@/components/console/ConsolePage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -7,11 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useResolvedClientId } from "@/hooks/useResolvedClientId";
 
 const objectives = ["attraction", "nurture", "conversion"] as const;
 
 export default function AdCreativeBriefs() {
-  const { clientId } = useParams();
+  const clientId = useResolvedClientId();
   const navigate = useNavigate();
   const [activeObjective, setActiveObjective] = useState<(typeof objectives)[number]>("attraction");
   const [placement, setPlacement] = useState("all");
