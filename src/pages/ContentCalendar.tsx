@@ -85,12 +85,12 @@ export default function ContentCalendar() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Content Calendar</div>
+            <div className="aa-pill-primary mb-4">Publishing Queue</div>
             <h1 className="aa-headline-lg text-foreground">
-              Publishing <span className="aa-gradient-text">Schedule</span>
+              Content <span className="aa-gradient-text">Calendar</span>
             </h1>
             <p className="aa-body mt-2">
-              Plan, schedule, and track your content publishing.
+              Plan, stage, and track publish windows from one queue.
             </p>
           </div>
           <div className="flex gap-3">

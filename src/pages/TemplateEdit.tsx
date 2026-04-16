@@ -152,7 +152,7 @@ export default function TemplateEdit() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
-            <div className="aa-pill-primary mb-2">Template Editor</div>
+            <div className="aa-pill-primary mb-2">Template Control</div>
             <h1 className="aa-headline-md text-foreground">
               {isSystemTemplate ? "View Template" : "Edit Template"}
             </h1>

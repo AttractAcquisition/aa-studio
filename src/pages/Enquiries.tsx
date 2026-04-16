@@ -152,7 +152,7 @@ export default function Enquiries() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Events</div>
+            <div className="aa-pill-primary mb-4">Lead Feed</div>
             <h1 className="aa-headline-lg text-foreground">
               Lead <span className="aa-gradient-text">Tracking</span>
             </h1>

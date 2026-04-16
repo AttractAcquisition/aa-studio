@@ -244,7 +244,7 @@ export default function OnePagers() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">One-Pagers</div>
+            <div className="aa-pill-primary mb-4">One-Pager Index</div>
             <h1 className="aa-headline-lg text-foreground">
               One-Pager <span className="aa-gradient-text">Library</span>
             </h1>

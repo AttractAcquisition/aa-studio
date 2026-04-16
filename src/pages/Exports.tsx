@@ -172,12 +172,12 @@ export default function Exports() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Exports</div>
+            <div className="aa-pill-primary mb-4">Export Queue</div>
             <h1 className="aa-headline-lg text-foreground">
-              Export <span className="aa-gradient-text">Center</span>
+              Delivery <span className="aa-gradient-text">Exports</span>
             </h1>
             <p className="aa-body mt-2">
-              Download your designs, scripts, and one-pagers in multiple formats.
+              Package scripts, one-pagers, and assets for handoff.
             </p>
           </div>
           <Button variant="gradient" onClick={handleExportAll} disabled={isExportingAll || contentItems.length === 0}>

@@ -221,13 +221,12 @@ export default function TemplateLibrary() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Template Library</div>
+            <div className="aa-pill-primary mb-4">Template Registry</div>
             <h1 className="aa-headline-lg text-foreground">
-              Design <span className="aa-gradient-text">Templates</span>
+              Template <span className="aa-gradient-text">Library</span>
             </h1>
             <p className="aa-body mt-2 max-w-lg">
-              {templates.length} brand-locked templates for consistent, on-brand content. Edit
-              fields, not layouts.
+              {templates.length} brand-locked templates for repeatable output. Edit fields, not layouts.
             </p>
           </div>
           <div className="flex gap-3">

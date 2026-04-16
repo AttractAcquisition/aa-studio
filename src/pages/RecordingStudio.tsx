@@ -490,12 +490,12 @@ export default function RecordingStudio() {
       <div className="animate-fade-in max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-10">
-          <div className="aa-pill-primary mb-4">Recording Studio</div>
+          <div className="aa-pill-primary mb-4">Capture Bay</div>
           <h1 className="aa-headline-lg text-foreground">
             Record <span className="aa-gradient-text">Video</span>
           </h1>
           <p className="aa-body mt-2">
-            Record videos directly from your browser and upload to your vault.
+            Capture source footage directly in the browser and push it to the vault.
           </p>
         </div>
 

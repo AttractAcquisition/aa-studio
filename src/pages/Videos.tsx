@@ -165,12 +165,12 @@ export default function Videos() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Videos</div>
+            <div className="aa-pill-primary mb-4">Video Index</div>
             <h1 className="aa-headline-lg text-foreground">
               Video <span className="aa-gradient-text">Vault</span>
             </h1>
             <p className="aa-body mt-2">
-              Upload and manage your video content assets.
+              Store and manage raw and finished video assets.
             </p>
           </div>
           <Button variant="gradient" onClick={() => setUploadModalOpen(true)}>

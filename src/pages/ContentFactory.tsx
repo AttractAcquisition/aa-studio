@@ -192,12 +192,12 @@ export default function ContentFactory() {
       <div className="animate-fade-in max-w-5xl mx-auto">
         {/* Header */}
         <div className="mb-10">
-          <div className="aa-pill-primary mb-4">Content Factory</div>
+          <div className="aa-pill-primary mb-4">Production Line</div>
           <h1 className="aa-headline-lg text-foreground">
-            Create <span className="aa-gradient-text">Content</span>
+            Content <span className="aa-gradient-text">Factory</span>
           </h1>
           <p className="aa-body mt-2">
-            AI-powered wizard: Idea → Script → One-Pager → Design Assets
+            Structured content workflow, Idea → Script → One-Pager → Design Assets.
           </p>
         </div>
 

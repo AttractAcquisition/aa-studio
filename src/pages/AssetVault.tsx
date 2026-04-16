@@ -71,12 +71,12 @@ export default function AssetVault() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Asset Vault</div>
+            <div className="aa-pill-primary mb-4">Asset Index</div>
             <h1 className="aa-headline-lg text-foreground">
-              Media <span className="aa-gradient-text">Library</span>
+              Asset <span className="aa-gradient-text">Library</span>
             </h1>
             <p className="aa-body mt-2">
-              Store, tag, and organize your images and assets.
+              Store, tag, and retrieve source files, exports, and references.
             </p>
           </div>
           <Button variant="gradient" onClick={() => setUploadModalOpen(true)}>

@@ -216,12 +216,12 @@ export default function ProofVault() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Proof Vault</div>
+            <div className="aa-pill-primary mb-4">Proof Register</div>
             <h1 className="aa-headline-lg text-foreground">
               Results & <span className="aa-gradient-text">Proof</span>
             </h1>
             <p className="aa-body mt-2">
-              Store DM screenshots, metrics, and client wins. Generate proof cards instantly.
+              Store screenshots, metrics, and client wins. Generate proof cards instantly.
             </p>
           </div>
           <Button variant="gradient" onClick={() => setAddProofOpen(true)}>

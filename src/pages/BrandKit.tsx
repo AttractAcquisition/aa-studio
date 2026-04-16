@@ -164,12 +164,12 @@ export default function BrandKit() {
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Brand Kit</div>
+            <div className="aa-pill-primary mb-4">Brand System</div>
             <h1 className="aa-headline-lg text-foreground">
-              Brand <span className="aa-gradient-text">Tokens</span>
+              Visual <span className="aa-gradient-text">System</span>
             </h1>
             <p className="aa-body mt-2 max-w-lg">
-              Define your visual identity. These tokens power all template designs.
+              Purple source of truth for the production console, templates, and shared UI surfaces.
             </p>
           </div>
           <Button variant="gradient" onClick={handleSaveAll} disabled={isUpdating}>
