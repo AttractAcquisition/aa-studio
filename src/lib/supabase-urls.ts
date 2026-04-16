@@ -1,4 +1,4 @@
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "") ?? "";
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL ?? "https://fgyvcyksgbivhrqoxkmj.supabase.co").replace(/\/$/, "");
 
 export function getSupabaseUrl() {
   return SUPABASE_URL;
