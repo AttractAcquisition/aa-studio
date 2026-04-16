@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { X, Sparkles, Wand2, Zap, Copy, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ScriptLibraryItem, ScriptPlatform, ScriptStatus } from "@/hooks/useScriptLibrary";
+import { supabaseFunctionUrl } from "@/lib/supabase-urls";
 
 interface ScriptModalProps {
   open: boolean;
@@ -90,9 +91,7 @@ export function ScriptModal({
   const handleGenerateWithAI = async () => {
     setIsGenerating(true);
     try {
-      const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-script`,
-        {
+      const response = await fetch(supabaseFunctionUrl("generate-script"), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

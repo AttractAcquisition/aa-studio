@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { supabaseFunctionUrl } from "@/lib/supabase-urls";
 
 export type ScriptPlatform = "instagram" | "tiktok" | "youtube" | "threads";
 export type ScriptStatus = "draft" | "ready" | "used";
@@ -310,9 +311,7 @@ export function useScriptLibrary() {
       if (!user?.id) throw new Error("Not authenticated");
 
       // Call the edge function to generate TTS
-      const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-tts`,
-        {
+      const response = await fetch(supabaseFunctionUrl("generate-tts"), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

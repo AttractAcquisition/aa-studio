@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { supabaseFunctionUrl } from "@/lib/supabase-urls";
 import type { 
   AAScript, 
   AAScenePlan, 
@@ -204,9 +205,7 @@ export function useVideoGenerator() {
       });
       
       // Use fetch directly for GET with query params
-      const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/video-render-status?render_id=${renderId}`,
-        {
+      const response = await fetch(`${supabaseFunctionUrl("video-render-status")}?render_id=${renderId}`, {
           headers: {
             "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
             "Content-Type": "application/json",

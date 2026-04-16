@@ -25,6 +25,7 @@ import {
 import { ArrowLeft, Save, Copy, Loader2, Image, Lock, Trash2 } from "lucide-react";
 import { useTemplates } from "@/hooks/useTemplates";
 import { toast } from "sonner";
+import { supabaseStoragePublicUrl } from "@/lib/supabase-urls";
 
 const CATEGORIES = ["proof", "carousel", "cover", "overlay", "text", "onepager"];
 const FORMATS = ["1:1", "4:5", "9:16", "16:9"];
@@ -127,8 +128,7 @@ export default function TemplateEdit() {
   const getPreviewUrl = () => {
     if (!previewAssetPath) return null;
     if (previewAssetPath.startsWith("http")) return previewAssetPath;
-    // Construct Supabase storage URL
-    return `https://dwhmvzooerxejustfqpt.supabase.co/storage/v1/object/public/${previewAssetPath}`;
+    return supabaseStoragePublicUrl(previewAssetPath);
   };
 
   if (loading) {

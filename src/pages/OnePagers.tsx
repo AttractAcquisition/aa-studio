@@ -41,6 +41,7 @@ import { OnePagerRenderer } from "@/components/onepager/OnePagerRenderer";
 import { TEMPLATE_OPTIONS } from "@/lib/one-pager-templates";
 import { validateOnePagerLayout, type OnePagerLayout, type OnePagerTemplateId } from "@/types/one-pager-layout";
 import { renderOnePagerToBlob, downloadBlob } from "@/lib/export-utils";
+import { supabaseFunctionUrl } from "@/lib/supabase-urls";
 import { toast } from "sonner";
 
 export default function OnePagers() {
@@ -91,9 +92,7 @@ export default function OnePagers() {
         throw new Error("Please provide content to generate from");
       }
 
-      const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-onepager-layout`,
-        {
+      const response = await fetch(supabaseFunctionUrl("generate-onepager-layout"), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

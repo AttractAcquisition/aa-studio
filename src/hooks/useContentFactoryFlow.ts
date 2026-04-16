@@ -29,6 +29,7 @@ import {
 } from "@/lib/export-utils";
 import { uploadBlobToBucket, createAssetRow } from "@/lib/supabase-helpers";
 import { supabase } from "@/integrations/supabase/client";
+import { supabaseFunctionUrl } from "@/lib/supabase-urls";
 
 type ToastFn = (opts: {
   title: string;
@@ -143,9 +144,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
     setOnePagerLayoutError(null);
 
     try {
-      const response = await fetch(
-        `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-onepager-layout`,
-        {
+      const response = await fetch(supabaseFunctionUrl("generate-onepager-layout"), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -536,9 +535,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       setIsGeneratingPromptKind(kind);
 
       try {
-        const response = await fetch(
-          `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-design-prompt`,
-          {
+        const response = await fetch(supabaseFunctionUrl("generate-design-prompt"), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -607,9 +604,7 @@ export function useContentFactoryFlow(deps: UseContentFactoryFlowDeps) {
       setIsGeneratingDesignKind(kind);
 
       try {
-        const response = await fetch(
-          `https://dwhmvzooerxejustfqpt.supabase.co/functions/v1/generate-design-image`,
-          {
+        const response = await fetch(supabaseFunctionUrl("generate-design-image"), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ prompt, kind }),
