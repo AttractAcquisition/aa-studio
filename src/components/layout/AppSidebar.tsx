@@ -2,20 +2,14 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Home, Sparkles, Users } from "lucide-react";
-import { aaConsoleCards, clientConsoleCards } from "@/lib/studio-data";
+import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { sidebarSections, type SidebarNavItem } from "@/lib/aa-navigation";
 
-const topLinks = [
-  { title: "Home", url: "/", icon: Home },
-  { title: "AA Console", url: "/aa-console", icon: Sparkles },
-  { title: "Client Console", url: "/client-console", icon: Users },
-];
-
-function SidebarGroup({ title, links, collapsed }: { title: string; links: typeof aaConsoleCards; collapsed: boolean }) {
+function SidebarGroup({ title, items, collapsed }: { title: string; items: SidebarNavItem[]; collapsed: boolean }) {
   return (
     <div className="space-y-1">
       {!collapsed ? <div className="px-4 pt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{title}</div> : null}
-      {links.map((item) => (
+      {items.map((item) => (
         <NavLink
           key={item.href}
           to={item.href}
@@ -54,41 +48,10 @@ export function AppSidebar() {
         </div>
       </div>
 
-      {!collapsed ? (
-        <div className="border-b border-sidebar-border px-4 py-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border border-border/70 bg-card/70 p-3">
-              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Mode</div>
-              <div className="mt-1 text-sm font-medium text-foreground">Production</div>
-            </div>
-            <div className="rounded-xl border border-border/70 bg-card/70 p-3">
-              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">System</div>
-              <div className="mt-1 text-sm font-medium text-foreground">Purple stack</div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-4 scrollbar-hide">
-        {topLinks.map((item) => (
-          <NavLink
-            key={item.url}
-            to={item.url}
-            className={({ isActive }) => cn(
-              "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors duration-200",
-              isActive ? "border-primary/20 bg-primary/10 text-foreground" : "border-transparent text-muted-foreground hover:border-border/70 hover:bg-secondary/50 hover:text-foreground",
-              collapsed && "justify-center px-0"
-            )}
-          >
-            <item.icon className="h-5 w-5 flex-shrink-0 text-primary" />
-            {!collapsed ? <span className="text-sm font-medium">{item.title}</span> : null}
-          </NavLink>
+        {sidebarSections.map((section) => (
+          <SidebarGroup key={section.title} title={section.title} items={section.items} collapsed={collapsed} />
         ))}
-
-        <div className="pt-2">
-          <SidebarGroup title="AA Console" links={aaConsoleCards} collapsed={collapsed} />
-          <SidebarGroup title="Client Console" links={clientConsoleCards} collapsed={collapsed} />
-        </div>
       </nav>
 
       {!collapsed && isConsoleRoute ? (
