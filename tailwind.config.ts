@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 export default {
   darkMode: ["class"],
@@ -14,7 +15,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        sans: ['Barlow', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        mono: ['"DM Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -100,8 +103,8 @@ export default {
           to: { opacity: "1", transform: "translateX(0)" },
         },
         "pulse-glow": {
-          "0%, 100%": { boxShadow: "0 0 20px hsl(268 100% 48% / 0.3)" },
-          "50%": { boxShadow: "0 0 40px hsl(268 100% 48% / 0.5)" },
+          "0%, 100%": { boxShadow: "0 0 20px hsl(268 96% 62% / 0.26)" },
+          "50%": { boxShadow: "0 0 40px hsl(268 96% 62% / 0.45)" },
         },
         "shimmer": {
           from: { backgroundPosition: "200% 0" },
@@ -118,5 +121,5 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 } satisfies Config;

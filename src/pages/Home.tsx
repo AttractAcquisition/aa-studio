@@ -5,42 +5,42 @@ import { CardGrid } from "@/components/console/CardGrid";
 import { mainConsoleCards } from "@/lib/studio-data";
 
 const stats = [
-  { label: "Mode", value: "Content-first", note: "No backend work yet" },
-  { label: "Consoles", value: "2", note: "AA + Client" },
-  { label: "Core modules", value: "7", note: "Briefs through performance" },
-  { label: "Status", value: "Ready", note: "Frontend only" },
+  { label: "Mode", value: "Ops console", note: "Editorial + production workflows" },
+  { label: "Workspaces", value: "2", note: "AA + client production" },
+  { label: "Modules", value: "7", note: "Briefs through performance" },
+  { label: "Status", value: "Ready", note: "Frontend system online" },
 ];
 
 export default function Home() {
   return (
     <AppLayout>
-      <div className="animate-fade-in max-w-6xl mx-auto">
+      <div className="mx-auto max-w-6xl animate-fade-in">
         <PageHeader
           eyebrow="AA Studio"
           title="Content production"
-          accent="system"
-          subtitle="Turn strategy, proof, and offers into publishable content. Pick a console to enter the studio or the client workspace."
-          meta="Purple visual system retained, backend integration deferred"
+          accent="ops console"
+          subtitle="Briefs, strategy, production, repurposing, review, library, and performance in one operating layer."
+          meta="Purple system retained, startup polish replaced with console density"
         />
 
         <StatRow stats={stats} />
 
-        <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <CardGrid cards={mainConsoleCards} />
           <div className="aa-card flex flex-col justify-between">
             <div>
               <div className="aa-pill-outline mb-4">Scope</div>
-              <h2 className="aa-headline-md text-foreground mb-3">What this repo now focuses on</h2>
-              <ul className="space-y-3 text-sm text-muted-foreground">
-                <li>• Briefs, strategy, production, repurposing, review, library, and performance</li>
-                <li>• AA Console for internal content needs</li>
-                <li>• Client Console for client content needs</li>
-                <li>• No backend wiring yet, just the front-end system</li>
+              <h2 className="aa-headline-md mb-3 text-foreground">What this repo now feels like</h2>
+              <ul className="space-y-3 text-sm leading-6 text-muted-foreground">
+                <li>• Terminal-ish, dashboard-first production surface</li>
+                <li>• Internal AA Console for content operators</li>
+                <li>• Client Console for client-facing production work</li>
+                <li>• Modular pages, hooks, dialogs, and reusable UI primitives</li>
               </ul>
             </div>
             <div className="mt-8 aa-panel">
               <p className="text-sm text-muted-foreground">Next integration layer</p>
-              <p className="text-lg font-semibold text-foreground">Supabase + workflow backend later</p>
+              <p className="text-lg font-medium text-foreground">Supabase + workflow backend later</p>
             </div>
           </div>
         </div>

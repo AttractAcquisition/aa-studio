@@ -17,21 +17,21 @@ export function ConsoleCard({ title, description, href, icon: Icon, badge, class
     <Link
       to={href}
       className={cn(
-        "aa-card group block text-left transition-all duration-200 hover:-translate-y-1 hover:border-primary/40",
+        "aa-card group block text-left transition-colors duration-200 hover:border-primary/25 hover:bg-card/95",
         className
       )}
     >
-      <div className="flex items-start justify-between gap-4 mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
-          <Icon className="w-6 h-6 text-primary" />
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10">
+          <Icon className="h-5 w-5 text-primary" />
         </div>
         {badge ? <span className="aa-pill-outline shrink-0">{badge}</span> : null}
       </div>
-      <h3 className="text-xl font-bold text-foreground mb-2">{title}</h3>
-      <p className="aa-body text-sm mb-6">{description}</p>
-      <div className="flex items-center gap-2 text-primary font-semibold text-sm">
+      <h3 className="mb-2 text-xl font-semibold tracking-[-0.03em] text-foreground">{title}</h3>
+      <p className="aa-body mb-6 text-sm">{description}</p>
+      <div className="flex items-center gap-2 text-sm font-medium text-primary">
         Open
-        <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
       </div>
     </Link>
   );

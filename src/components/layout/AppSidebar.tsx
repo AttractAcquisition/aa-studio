@@ -14,19 +14,19 @@ const topLinks = [
 function SidebarGroup({ title, links, collapsed }: { title: string; links: typeof aaConsoleCards; collapsed: boolean }) {
   return (
     <div className="space-y-1">
-      {!collapsed ? <div className="px-4 pt-4 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{title}</div> : null}
+      {!collapsed ? <div className="px-4 pt-4 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{title}</div> : null}
       {links.map((item) => (
         <NavLink
           key={item.href}
           to={item.href}
           className={({ isActive }) => cn(
-            "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
-            isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+            "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors duration-200",
+            isActive ? "border-primary/20 bg-primary/10 text-foreground" : "border-transparent text-muted-foreground hover:border-border/70 hover:bg-secondary/50 hover:text-foreground",
             collapsed && "justify-center px-0"
           )}
         >
-          <item.icon className="w-5 h-5 flex-shrink-0" />
-          {!collapsed ? <span className="font-medium text-sm">{item.title}</span> : null}
+          <item.icon className="h-5 w-5 flex-shrink-0 text-primary" />
+          {!collapsed ? <span className="text-sm font-medium">{item.title}</span> : null}
         </NavLink>
       ))}
     </div>
@@ -39,34 +39,49 @@ export function AppSidebar() {
   const isConsoleRoute = location.pathname.startsWith("/aa-console") || location.pathname.startsWith("/client-console");
 
   return (
-    <aside className={cn("fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col", collapsed ? "w-20" : "w-72")}>
-      <div className={cn("flex items-center h-20 px-6 border-b border-sidebar-border", collapsed && "justify-center px-0")}>
+    <aside className={cn("fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl transition-all duration-300", collapsed ? "w-20" : "w-72")}>
+      <div className={cn("flex h-20 items-center border-b border-sidebar-border px-6", collapsed && "justify-center px-0")}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-            <span className="text-lg font-black text-primary-foreground">AA</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+            <span className="font-mono text-sm font-semibold tracking-[0.18em] text-primary">AA</span>
           </div>
           {!collapsed ? (
             <div className="flex flex-col">
-              <span className="font-bold text-foreground text-sm">AA Studio</span>
-              <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Content Production Layer</span>
+              <span className="text-sm font-semibold text-foreground">AA Studio</span>
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Content Ops Console</span>
             </div>
           ) : null}
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-2 overflow-y-auto scrollbar-hide">
+      {!collapsed ? (
+        <div className="border-b border-sidebar-border px-4 py-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-border/70 bg-card/70 p-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Mode</div>
+              <div className="mt-1 text-sm font-medium text-foreground">Production</div>
+            </div>
+            <div className="rounded-xl border border-border/70 bg-card/70 p-3">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">System</div>
+              <div className="mt-1 text-sm font-medium text-foreground">Purple stack</div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-4 scrollbar-hide">
         {topLinks.map((item) => (
           <NavLink
             key={item.url}
             to={item.url}
             className={({ isActive }) => cn(
-              "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group",
-              isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+              "flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors duration-200",
+              isActive ? "border-primary/20 bg-primary/10 text-foreground" : "border-transparent text-muted-foreground hover:border-border/70 hover:bg-secondary/50 hover:text-foreground",
               collapsed && "justify-center px-0"
             )}
           >
-            <item.icon className="w-5 h-5 flex-shrink-0" />
-            {!collapsed ? <span className="font-medium text-sm">{item.title}</span> : null}
+            <item.icon className="h-5 w-5 flex-shrink-0 text-primary" />
+            {!collapsed ? <span className="text-sm font-medium">{item.title}</span> : null}
           </NavLink>
         ))}
 
@@ -79,17 +94,20 @@ export function AppSidebar() {
       {!collapsed && isConsoleRoute ? (
         <div className="px-4 pb-4">
           <NavLink to={location.pathname.startsWith("/client-console") ? "/client/requests" : "/briefs"}>
-            <Button variant="gradient" className="w-full gap-2">
-              <Sparkles className="w-4 h-4" />
-              {location.pathname.startsWith("/client-console") ? "Open Requests" : "Open Briefs"}
+            <Button variant="outline" className="w-full justify-between gap-2 rounded-xl">
+              <span className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                {location.pathname.startsWith("/client-console") ? "Open Requests" : "Open Briefs"}
+              </span>
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </NavLink>
         </div>
       ) : null}
 
-      <div className="p-4 border-t border-sidebar-border">
-        <Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)} className={cn("w-full", collapsed && "px-0")}>
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <><ChevronLeft className="w-4 h-4" /><span>Collapse</span></>}
+      <div className="border-t border-sidebar-border p-4">
+        <Button variant="ghost" size="sm" onClick={() => setCollapsed(!collapsed)} className={cn("w-full justify-center gap-2 rounded-xl", collapsed && "px-0")}>
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <><ChevronLeft className="h-4 w-4" /><span>Collapse</span></>}
         </Button>
       </div>
     </aside>

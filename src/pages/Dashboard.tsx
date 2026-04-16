@@ -108,12 +108,12 @@ status: (bundle.status === "scheduled" ? "ready" : bundle.status) as "draft" | "
         {/* Header */}
         <div className="flex items-start justify-between mb-10">
           <div>
-            <div className="aa-pill-primary mb-4">Dashboard</div>
+            <div className="aa-pill-primary mb-4">Production Ops</div>
             <h1 className="aa-headline-lg text-foreground">
-              Welcome to <span className="aa-gradient-text">AA Studio</span>
+              Content <span className="aa-gradient-text">Control</span>
             </h1>
             <p className="aa-body mt-2 max-w-lg">
-              Your brand-page operating system. Create, manage, and publish on-brand content from one place.
+              The internal content production console, briefs, proof, templates, exports, and performance in one place.
             </p>
           </div>
           <div className="flex items-center gap-3">

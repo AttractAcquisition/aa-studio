@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,800;1,400&family=DM+Mono:wght@300;400;500&family=Barlow:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,63 +6,63 @@
 
 @layer base {
   :root {
-    /* AA Studio Brand Colors - Single source of truth: #6A00F4 */
-    --deep-ink: 220 48% 7%;
-    --deep-purple: 268 100% 48%; /* #6A00F4 */
-    --electric-purple: 268 85% 60%; /* Lighter variant */
+    /* AA Studio Brand Colors - purple remains the anchor */
+    --deep-ink: 255 30% 6%;
+    --deep-purple: 268 96% 62%;
+    --electric-purple: 284 86% 68%;
     --light-lavender: 268 100% 92%;
     --pure-white: 0 0% 100%;
     
     /* Semantic mappings */
-    --background: 220 48% 7%;
+    --background: 255 30% 6%;
     --foreground: 0 0% 100%;
 
-    --card: 220 40% 10%;
+    --card: 255 26% 10%;
     --card-foreground: 0 0% 100%;
 
-    --popover: 220 40% 10%;
+    --popover: 255 26% 10%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 268 100% 48%; /* #6A00F4 - THE accent color */
+    --primary: 268 96% 62%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 40% 14%;
+    --secondary: 255 22% 13%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 30% 18%;
-    --muted-foreground: 220 20% 60%;
+    --muted: 255 18% 16%;
+    --muted-foreground: 255 10% 62%;
 
-    --accent: 268 100% 48%; /* Same as primary for consistency */
+    --accent: 268 96% 62%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 30% 20%;
-    --input: 220 30% 18%;
-    --ring: 268 100% 48%;
+    --border: 255 18% 20%;
+    --input: 255 18% 16%;
+    --ring: 268 96% 62%;
 
-    --radius: 1.5rem;
+    --radius: 1rem;
 
     /* Sidebar */
-    --sidebar-background: 220 45% 5%;
+    --sidebar-background: 255 32% 5%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 268 100% 48%;
+    --sidebar-primary: 268 96% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 40% 12%;
+    --sidebar-accent: 255 22% 12%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 220 30% 15%;
-    --sidebar-ring: 268 100% 48%;
+    --sidebar-border: 255 18% 16%;
+    --sidebar-ring: 268 96% 62%;
 
     /* AA Specific tokens */
-    --aa-gradient-primary: linear-gradient(135deg, hsl(268 100% 48%), hsl(268 85% 60%));
-    --aa-gradient-lavender: linear-gradient(135deg, hsl(268 100% 92%), hsl(268 100% 85%));
-    --aa-shadow-glow: 0 0 60px hsl(268 100% 48% / 0.3);
-    --aa-shadow-card: 0 4px 24px hsl(220 48% 7% / 0.4);
+    --aa-gradient-primary: linear-gradient(135deg, hsl(268 96% 62%), hsl(284 86% 68%));
+    --aa-gradient-lavender: linear-gradient(135deg, hsl(268 100% 92%), hsl(278 100% 86%));
+    --aa-shadow-glow: 0 0 0 1px hsl(268 96% 62% / 0.18), 0 0 36px hsl(268 96% 62% / 0.12);
+    --aa-shadow-card: 0 18px 50px hsl(255 50% 3% / 0.35);
   }
 
   .dark {
-    --background: 220 48% 7%;
+    --background: 255 30% 6%;
     --foreground: 0 0% 100%;
   }
 }
@@ -72,63 +72,92 @@
     @apply border-border;
   }
 
+  html {
+    background: hsl(var(--background));
+  }
+
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: 'Barlow', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background:
+      radial-gradient(circle at top left, hsl(var(--primary) / 0.16), transparent 28%),
+      radial-gradient(circle at 85% 10%, hsl(278 100% 80% / 0.08), transparent 24%),
+      linear-gradient(180deg, hsl(var(--background)), hsl(255 32% 5%));
+    background-attachment: fixed;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-extrabold tracking-tight;
+    @apply tracking-tight;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    letter-spacing: -0.03em;
   }
 }
 
 @layer components {
   .aa-pill {
-    @apply inline-flex items-center px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider;
+    @apply inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em];
+    font-family: 'DM Mono', monospace;
+    line-height: 1;
   }
   
   .aa-pill-primary {
-    @apply aa-pill bg-primary text-primary-foreground;
+    @apply aa-pill border-primary/20 text-primary;
+    background: hsl(var(--primary) / 0.16);
   }
   
   .aa-pill-lavender {
-    @apply aa-pill bg-lavender text-deep-ink;
+    @apply aa-pill text-deep-ink;
+    background: hsl(var(--light-lavender));
+    border-color: hsl(var(--light-lavender) / 0.35);
   }
   
   .aa-pill-outline {
-    @apply aa-pill border border-border text-muted-foreground;
+    @apply aa-pill border-border/80 text-muted-foreground;
+    background: hsl(var(--secondary) / 0.4);
   }
   
   .aa-card {
-    @apply rounded-3xl bg-card p-8 border border-border;
+    @apply rounded-2xl border border-border/70 bg-card/85 p-6;
+    backdrop-filter: blur(12px);
   }
   
   .aa-card-elevated {
-    @apply aa-card shadow-[var(--aa-shadow-card)];
+    @apply aa-card border-primary/15;
+    box-shadow: var(--aa-shadow-card);
   }
   
   .aa-underline-bar {
-    @apply h-1 w-16 rounded-full bg-primary mt-4;
+    @apply h-px w-20 rounded-full bg-primary mt-4;
+    opacity: 0.7;
   }
   
   .aa-headline-xl {
-    @apply text-5xl md:text-6xl lg:text-7xl font-black leading-[0.95] tracking-tight;
+    @apply text-4xl md:text-5xl lg:text-6xl leading-[0.96] tracking-[-0.03em];
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
   }
   
   .aa-headline-lg {
-    @apply text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight;
+    @apply text-3xl md:text-4xl lg:text-5xl leading-tight tracking-[-0.03em];
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
   }
   
   .aa-headline-md {
-    @apply text-2xl md:text-3xl font-bold;
+    @apply text-2xl md:text-3xl;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
   }
   
   .aa-body {
-    @apply text-base text-muted-foreground leading-relaxed;
+    @apply text-base text-muted-foreground leading-7;
+    font-family: 'Barlow', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   }
   
   .aa-gradient-text {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
+    @apply bg-clip-text text-transparent;
+    background-image: var(--aa-gradient-primary);
   }
   
   .aa-glow {
@@ -136,7 +165,42 @@
   }
   
   .aa-panel {
-    @apply rounded-2xl bg-lavender/10 p-6 border border-lavender/20;
+    @apply rounded-2xl border border-primary/15 p-5;
+    background: hsl(var(--primary) / 0.06);
+    backdrop-filter: blur(12px);
+  }
+
+  .aa-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .aa-table th {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid hsl(var(--border) / 0.8);
+    white-space: nowrap;
+  }
+
+  .aa-table td {
+    padding: 12px 14px;
+    font-size: 14px;
+    border-bottom: 1px solid hsl(var(--border) / 0.7);
+    color: hsl(var(--foreground));
+  }
+
+  .aa-table tr:hover td {
+    background: hsl(var(--primary) / 0.08);
+    cursor: pointer;
+  }
+
+  .aa-table tr:last-child td {
+    border-bottom: none;
   }
 }
 
