@@ -5,7 +5,7 @@ External Remotion-based Node.js service for rendering AA Studio videos.
 ## Environment Variables
 
 ```
-SUPABASE_URL=https://dwhmvzooerxejustfqpt.supabase.co
+SUPABASE_URL=https://your-project-ref.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 SUPABASE_VIDEOS_BUCKET=aa-videos
 RENDER_SECRET=<shared_secret>

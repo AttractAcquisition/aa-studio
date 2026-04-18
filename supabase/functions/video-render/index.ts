@@ -204,8 +204,7 @@ Deno.serve(async (req) => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Use a placeholder video URL
-      const placeholderUrl =
-        "https://dwhmvzooerxejustfqpt.supabase.co/storage/v1/object/public/aa-videos/placeholder/sample.mp4";
+      const placeholderUrl = `${supabaseUrl}/storage/v1/object/public/aa-videos/placeholder/sample.mp4`;
 
       await supabase
         .from("aa_video_renders")
